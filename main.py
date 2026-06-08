@@ -1,0 +1,1 @@
+print("Zephyra is alive.")
