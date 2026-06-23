@@ -1,16 +1,23 @@
-questions =[
-    {"question":"What language is Zephyra build in?","answer":"python"},
-    {"question":"What framwork handles the API?","answer":"fastapi"},
-    {"question":"What tool runs LLMs locally?","answer":"ollama"},
-    {"question":"What is the name of the project?","answer":"Zephyra"},
-    {"question":"What stores vector memory?","answer":"chromadb"},
-]
-score = 0
-for q in questions:
-    user_input =input(q["question"] + ">").lower()
-    if user_input ==q["answer"]:
-        print("correct!")
-        score += 1
-    else:
-        print(f"Wrong.Answer was:{q['answer']}")
-        print(f"\nYour score:{score}/5")
+import time
+from quiz_logic import load_questions, run_quiz, summarize
+
+def main():
+    questions = load_questions()
+    start = time.time()
+
+    try:
+        score = run_quiz(
+            questions,
+            sorter=lambda q: len(q["question"])  # shortest question first
+        )
+    except Exception as e:
+        print(f"Something broke during the quiz: {e}")
+        score = 0
+    finally:
+        elapsed = round(time.time() - start, 1)
+
+    summarize(score, len(questions), "Good hustle.", time_seconds=elapsed)
+
+
+if __name__ == "__main__":
+    main()
