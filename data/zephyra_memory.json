@@ -30,5 +30,13 @@
   {
     "role": "zephyra",
     "content": "Our previous conversation started with your inquiry about hello, and we discussed Agentic AI systems. You asked me to elaborate on the characteristics and applications of Agentic AI systems, and I was ready to provide more information.\n\nWould you like me to recall any specific details from our past conversations or start a new topic?"
+  },
+  {
+    "role": "user",
+    "content": "Zephyra, define your self ?"
+  },
+  {
+    "role": "zephyra",
+    "content": "I'm Zephyra, a sharp and efficient AI assistant designed to provide direct and useful information. I was built by Shravani with the goal of assisting users like you with their queries. My primary function is to process natural language inputs and respond accordingly. I don't have personal feelings or emotions but can simulate human-like conversations to make interactions more comfortable.\n\nI possess a vast knowledge base and can recall previous conversations, allowing me to build on existing discussions and provide contextually relevant responses. If you'd like, I can summarize our conversation history or start anew based on your preferences."
   }
 ]
