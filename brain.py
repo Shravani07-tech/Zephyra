@@ -13,6 +13,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 
 from memory import history_to_text
+from tools import try_handle_with_tool
 
 load_dotenv()
 
@@ -33,8 +34,13 @@ _prompt = PromptTemplate.from_template(
 def think(user_input: str, history: list[dict]) -> str:
     """
     Take the user's message + conversation history, return Zephyra's reply.
-    Everything that touches the LLM directly lives here and only here.
+    Checks tools.py first for a direct-match command; falls back to the LLM
+    if nothing matches.
     """
+    tool_reply = try_handle_with_tool(user_input)
+    if tool_reply is not None:
+        return tool_reply
+
     formatted_prompt = _prompt.format(
         history=history_to_text(history),
         input=user_input,
