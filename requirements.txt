@@ -3,3 +3,4 @@ langchain-core
 langchain-ollama
 langchain-groq
 python-dotenv
+psutil
