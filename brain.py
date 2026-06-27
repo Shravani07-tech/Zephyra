@@ -1,13 +1,3 @@
-"""
-Zephyra — Brain Layer (v0.1)
------------------------------
-The "thinking" core. Supports two LLM backends via ZEPHYRA_LLM_PROVIDER:
-  - "ollama" (default) — local-first, used by your CLI on your own machine.
-  - "groq"             — cloud, used only by the deployed Streamlit demo,
-                          since Streamlit Community Cloud has no access to
-                          your local Ollama instance.
-"""
-
 import os
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
@@ -19,7 +9,7 @@ load_dotenv()
 
 LLM_PROVIDER = os.getenv("ZEPHYRA_LLM_PROVIDER", "ollama")
 TEMPERATURE = 0.7
-MEMORY_WINDOW = 5  # how many past exchanges get sent to the model each turn
+MEMORY_WINDOW = 5
 
 if LLM_PROVIDER == "groq":
     from langchain_groq import ChatGroq
@@ -39,11 +29,21 @@ _prompt = PromptTemplate.from_template(
 )
 
 
+def format_error(e: Exception) -> str:
+    """Turn a raw LLM-call exception into a readable, provider-specific message."""
+    if LLM_PROVIDER == "groq":
+        return f"Couldn't reach the model (Groq): {e}. Check your GROQ_API_KEY is set correctly."
+    return (
+        f"Couldn't reach the model (Ollama): {e}. "
+        "Is Ollama actually running? Try `ollama run llama3.2` in another terminal to check."
+    )
+
+
 def think(user_input: str, history: list[dict]) -> str:
     """
     Take the user's message + conversation history, return Zephyra's reply.
-    Checks tools.py first, windows history to the last MEMORY_WINDOW
-    exchanges, then falls back to the LLM.
+    Raises on LLM failure — callers must catch and decide what to do
+    (the CLI and Streamlit UI should NOT save a failed call into memory).
     """
     tool_reply = try_handle_with_tool(user_input)
     if tool_reply is not None:
