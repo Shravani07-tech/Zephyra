@@ -1,274 +1,76 @@
-# Zephyra
+# Zephyra 🤖
 
-> A Personal Agentic AI Infrastructure Layer
+> A modular, privacy-first, local-running AI chatbot — built from scratch.
 
-## Overview
+## What it is
 
-Zephyra is a long-term engineering project focused on building a modular, privacy-first, agentic AI infrastructure layer that sits on top of an operating system and acts as an intelligent coordination layer between the user, tools, data, and external services.
+Zephyra is a CLI + web AI assistant built on LangChain, designed around clean separation of concerns: a **brain** for LLM reasoning, a **memory** layer for persistent conversation history, and a **tools** layer for deterministic functions the model can call instead of guessing. It runs entirely local-first via **Ollama** — no API key, no cost, no data leaving your machine — with an optional cloud-hosted demo (Groq) for public deployment.
 
-Unlike traditional AI assistants, Zephyra is being designed as a persistent system capable of memory, reasoning, task execution, multi-agent orchestration, secure automation, and continuous improvement through structured feedback loops.
+## Live demo
 
-Project Timeline:
+🔗 **(https://zephyra-dy4zog7lyanrcxv8a44c6t.streamlit.app)**
 
-**08 June 2026 → 08 June 2028**
+> Note: the hosted demo runs on Groq's cloud API (free tier), not local Ollama — Streamlit Community Cloud has no access to a local machine, so the public version swaps backends. The local CLI version below runs fully offline.
 
----
+## Features
 
-# Vision
+- 💬 Conversational chat — CLI and Streamlit web UI, same underlying brain
+- 🧠 Persistent memory — conversations survive a restart, with a 5-turn sliding context window so the model doesn't drown in old history
+- 🛠️ Built-in tools — current time, date, calculator, system info (CPU/RAM via `psutil`)
+- 🔁 Dual LLM backend — Ollama locally (free, private), Groq for the public demo, swapped via one env var
+- ⌨️ Slash commands — `/help /quit /clear /history /time /date /calc /sysinfo`
+- 🛡️ Graceful failure handling — a dropped LLM connection shows a clear message instead of crashing, and failed calls are never saved into memory
 
-The goal of Zephyra is to create a deeply personalized AI system that can:
+## Architecture
 
-* Understand user intent
-* Maintain long-term memory
-* Coordinate specialized agents
-* Execute tasks autonomously
-* Integrate with external tools and services
-* Learn from outcomes and feedback
-* Operate securely in local and cloud-assisted environments
+```
+zephyra_chatbot.py   → CLI interface — I/O and slash-command dispatch only
+streamlit_app.py     → Web chat UI — reuses the same brain/memory/tools, zero duplicate logic
+brain.py             → LLM logic — prompt construction, provider switch, tool routing
+memory.py            → Persistent JSON conversation log + sliding-window context
+tools.py             → Plain Python functions Zephyra can call directly
+```
 
----
+Each interface is a thin wrapper around the same `brain.py`. Built once, reused everywhere — adding the Streamlit UI required zero changes to the chat logic itself.
 
-# Core Design Principles
+## Tech stack
 
-### Local First
+Python · LangChain · Ollama (local inference) · Groq (cloud inference) · Streamlit · psutil
 
-User data remains on-device by default.
+## Install & run locally
 
-### Privacy First
+```bash
+git clone https://github.com/Shravani07-tech/Zephyra.git
+cd Zephyra
+python -m venv venv
+venv\Scripts\activate          # Windows
+pip install -r requirements.txt
 
-Data ownership belongs to the user. Sensitive information is protected through encryption and access controls.
+# Pull a local model (one-time, ~2GB)
+ollama pull llama3.2
 
-### Modular Architecture
+python zephyra_chatbot.py
+```
 
-Each component is designed as an independent module to allow scalability and maintainability.
+## Usage
 
-### Agent-Centric Design
+Type normally to chat, or use a command:
 
-Specialized agents collaborate to plan, reason, execute, evaluate, and improve system behavior.
+```
+/help          list all commands
+/time          /date          /calc 12*4+1          /sysinfo
+/history       view the full conversation log
+/clear         wipe memory (this session + the saved file)
+/quit          exit
+```
 
-### API-First Integration
+## Roadmap (Phase 2)
 
-Official APIs are preferred whenever available. Browser automation is used only as a fallback.
+- Semantic + procedural memory (full four-layer memory architecture)
+- Real LLM-driven tool-calling — current tool routing is simple keyword matching, not agentic
+- FastAPI backend, SQLite/ChromaDB persistence
+- Multi-session support (`/sessions` is currently a stub)
 
-### Long-Term Evolution
+## Built by
 
-Zephyra is designed to evolve through iterative development and continuous improvement.
-
----
-
-# Target Architecture
-
-## Interaction Layer
-
-Interfaces through which users interact with Zephyra.
-
-Planned interfaces:
-
-* Text Interface (Primary)
-* API Interface
-* Voice Interface (Secondary)
-
----
-
-## Agent Layer
-
-Specialized agents responsible for independent reasoning and execution tasks.
-
-Planned agents:
-
-* Planner Agent
-* Execution Agent
-* Memory Agent
-* Research Agent
-* Evaluation Agent
-* Security Agent
-
----
-
-## Memory Layer
-
-Persistent context and knowledge management.
-
-Planned memory types:
-
-* Working Memory
-* Episodic Memory
-* Semantic Memory
-* System Memory
-
-Capabilities:
-
-* Retrieval
-* Summarization
-* Context Compression
-* Long-Term Recall
-
----
-
-## Tool Layer
-
-Provides controlled access to external capabilities.
-
-Examples:
-
-* File Operations
-* APIs
-* Search Tools
-* Local Applications
-* Terminal Actions
-* Browser Automation
-
----
-
-## Security Layer
-
-Security is treated as a first-class architectural component.
-
-Responsibilities:
-
-* Permission Enforcement
-* Action Validation
-* Data Classification
-* Threat Modeling
-* Secure Execution Controls
-* Audit Logging
-
----
-
-# Self-Improvement Framework
-
-Zephyra's improvement loop is designed around measurable outcomes.
-
-The planned process includes:
-
-1. Structured Outcome Logging
-2. Failure Pattern Detection
-3. Evaluation Agent Analysis
-4. Retrieval Optimization
-5. Prompt Strategy Refinement
-
-The objective is to improve system behavior through feedback-driven adaptation rather than manual maintenance.
-
----
-
-# Privacy Architecture
-
-All personal information is stored locally by default.
-
-Data Classification Levels:
-
-* Public
-* Personal
-* Sensitive
-* Critical
-
-Planned security measures:
-
-* AES-256 Encryption at Rest
-* Access-Controlled Memory Layers
-* Explicit Permission Requirements
-* Encrypted Backup Support
-
-No user data will leave the system unless explicitly configured by the user.
-
----
-
-# Deployment Model
-
-### Default Mode
-
-* Local Machine
-* Local Storage
-* Local AI Models
-
-### Optional Mode
-
-* Personal VPS Deployment
-* Secure Remote Access
-
-### Backup Strategy
-
-* Encrypted User-Controlled Backups
-* Recovery Independent of Original Hardware
-
----
-
-# Technology Stack
-
-Current:
-
-* Python
-* Git
-* GitHub
-* FastAPI
-* Ollama
-* VS Code
-
-Planned:
-
-* LangGraph
-* PostgreSQL
-* ChromaDB
-* Docker
-* Playwright
-* Local LLMs
-
----
-
-# Development Roadmap
-
-### Phase 1 — Foundation & Core Infrastructure
-
-* Python
-* Linux
-* Git
-* FastAPI
-* Core Project Structure
-
-### Phase 2 — Memory & Tooling
-
-* Databases
-* APIs
-* Retrieval Systems
-* Automation Frameworks
-
-### Phase 3 — Agentic Intelligence
-
-* Multi-Agent Systems
-* Evaluation Pipelines
-* Memory Orchestration
-
-### Phase 4 — Security & Reliability
-
-* Threat Modeling
-* Secure Execution
-* Audit Systems
-
-### Phase 5 — Production Zephyra
-
-* Local AI
-* Advanced Personalization
-* Distributed Deployment
-* Long-Term Autonomy
-
----
-
-# Current Status
-
-Development Started:
-
-**08 June 2026**
-
-Current Phase:
-
-**Phase 1 — Foundation & Core Infrastructure**
-
-Status:
-
-🚧 Active Development
-
----
-
-# Mission
-
-Build a technically rigorous, privacy-first, agentic AI infrastructure layer that demonstrates advanced engineering across AI systems, memory architecture, automation, security, and multi-agent orchestration.
+Shravani Mayekar — B.Tech Electronics & Computer Science, building toward AI generalist / freelance AI development work.
