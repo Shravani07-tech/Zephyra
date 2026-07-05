@@ -1,128 +1,266 @@
-"""
-Zephyra — Streamlit Frontend
--------------------------------
-This file is the "frontend" — UI, session management, and styling only.
-All thinking happens in brain.py, all storage in memory.py. This file
-calls them but contains zero LLM/prompt logic itself, keeping the
-backend/frontend separation real even within one deployed app.
-
-Each browser session gets its own private, isolated session_id — fixing
-the earlier bug where every visitor shared one memory file and could see
-each other's conversations.
-"""
-
 import uuid
 import streamlit as st
 from brain import think, format_error
 from memory import load_memory, save_turn, clear_memory
 
-st.set_page_config(page_title="Zephyra", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Zephyra", page_icon="⚡", layout="centered")
 
-# ---------------------------------------------------------------------------
-# Custom styling — flat, minimal, no gradients/shadows. Overrides Streamlit's
-# default chrome to feel like a designed product, not a default template.
-# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
-    #MainMenu, footer, header {visibility: hidden;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    .stApp {
-        background: #0f1115;
-    }
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
 
-    .block-container {
-        padding-top: 2rem;
-        max-width: 720px;
-    }
+#MainMenu, footer, header { visibility: hidden; }
 
-    .zephyra-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 4px;
-    }
-    .zephyra-title {
-        font-size: 28px;
-        font-weight: 600;
-        color: #f5f5f5;
-        margin: 0;
-    }
-    .zephyra-subtitle {
-        color: #8b8d93;
-        font-size: 14px;
-        margin: 0 0 24px 0;
-    }
+.stApp {
+    background: #05080f;
+}
 
-    [data-testid="stChatMessage"] {
-        background: transparent;
-        border: none;
-        padding: 10px 0;
-    }
+.block-container {
+    padding-top: 0 !important;
+    padding-bottom: 130px;
+    max-width: 740px;
+}
 
-    div[data-testid="stChatMessageContent"] {
-        background: #1a1d24;
-        border-radius: 12px;
-        padding: 12px 16px;
-        border: 1px solid #262932;
-    }
+/* NAV */
+.z-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0 16px;
+    border-bottom: 1px solid #080f1e;
+    margin-bottom: 0;
+    background: #030508;
+}
 
-    .stChatInput textarea {
-        background: #1a1d24 !important;
-        border: 1px solid #262932 !important;
-        border-radius: 10px !important;
-        color: #f5f5f5 !important;
-    }
+.z-wordmark {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-    .stButton button {
-        background: #1a1d24;
-        border: 1px solid #262932;
-        border-radius: 8px;
-        color: #d0d2d6;
-        font-size: 13px;
-        padding: 6px 14px;
-    }
-    .stButton button:hover {
-        border-color: #3a3e4a;
-        background: #21242c;
-        color: #f5f5f5;
-    }
+.z-dot {
+    width: 6px;
+    height: 6px;
+    background: #2563eb;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.z-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #1e3a5f;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border: 1px solid #0e1a2e;
+    border-radius: 3px;
+}
+
+/* EMPTY STATE */
+.z-empty {
+    padding: 96px 0 56px;
+}
+
+.z-greeting {
+    font-size: 32px;
+    font-weight: 600;
+    color: #f0f4ff;
+    letter-spacing: -0.03em;
+    margin: 0 0 10px;
+    line-height: 1.2;
+}
+
+.z-greeting span {
+    color: #2563eb;
+}
+
+.z-byline {
+    font-size: 13px;
+    color: #1e3a5f;
+    margin: 0 0 40px;
+    font-weight: 400;
+}
+
+.z-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border: 1px solid #0e1525;
+    border-radius: 8px;
+    overflow: hidden;
+    max-width: 480px;
+}
+
+.z-suggestion {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #3d5a80;
+    background: #080d1a;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.z-suggestion:hover {
+    background: #0a1020;
+    color: #6b8cba;
+}
+
+.z-suggestion-arrow {
+    margin-left: auto;
+    color: #0e1a2e;
+    font-size: 11px;
+}
+
+/* MESSAGES */
+[data-testid="stChatMessage"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+div[data-testid="stChatMessageContent"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 14px 0 !important;
+    border-bottom: 1px solid #0a1020 !important;
+    border-radius: 0 !important;
+}
+
+div[data-testid="stChatMessageContent"] p {
+    color: #8ba3cc !important;
+    font-size: 14px !important;
+    line-height: 1.75 !important;
+    margin: 0 !important;
+}
+
+[data-testid="stChatMessage"][data-testid*="user"] div[data-testid="stChatMessageContent"] p,
+div[data-testid="stChatMessageContent"]:has(+ *) p {
+    color: #c8d8f0 !important;
+}
+
+/* differentiate user messages */
+[data-testid="stChatMessage"]:nth-child(odd) div[data-testid="stChatMessageContent"] p {
+    color: #d0dff5 !important;
+}
+
+/* INPUT */
+[data-testid="stChatInput"] {
+    background: #05080f !important;
+    border-top: 1px solid #0e1525 !important;
+    padding: 20px 0 !important;
+}
+
+.stChatInput textarea {
+    background: #080d1a !important;
+    border: 1px solid #0e1a2e !important;
+    border-radius: 6px !important;
+    color: #c8d8f0 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 14px !important;
+    caret-color: #2563eb !important;
+    padding: 14px 16px !important;
+}
+
+.stChatInput textarea:focus {
+    border-color: #1a3560 !important;
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.06) !important;
+    outline: none !important;
+}
+
+.stChatInput textarea::placeholder {
+    color: #111d33 !important;
+}
+
+/* NEW CHAT BUTTON */
+.stButton button {
+    background: transparent !important;
+    border: 1px solid #0e1a2e !important;
+    border-radius: 4px !important;
+    color: #1e3a5f !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    letter-spacing: 0.04em !important;
+    padding: 6px 12px !important;
+    text-transform: uppercase !important;
+}
+
+.stButton button:hover {
+    border-color: #1a3560 !important;
+    color: #3d6499 !important;
+    background: #080d1a !important;
+}
+
+/* AVATAR — hidden completely */
+[data-testid="stChatMessageAvatar"],
+[data-testid="stChatMessageAvatar"] * {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Session management — one isolated session_id per browser session.
-# This is the actual fix for the multi-user privacy bug.
-# ---------------------------------------------------------------------------
+# Session management
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.history = load_memory(st.session_state.session_id)
 
-# ---------------------------------------------------------------------------
-# Header + New chat control
-# ---------------------------------------------------------------------------
-header_col, button_col = st.columns([5, 1])
-with header_col:
-    st.markdown(
-        '<p class="zephyra-title">Zephyra</p>'
-        '<p class="zephyra-subtitle">Local-first AI assistant — built by Shravani</p>',
-        unsafe_allow_html=True,
-    )
-with button_col:
-    if st.button("New chat", use_container_width=True):
+# Nav
+nav_col, btn_col = st.columns([5, 1])
+with nav_col:
+    st.markdown("""
+    <div class="z-nav">
+        <div class="z-wordmark">
+            <span class="z-dot"></span>
+            ZEPHYRA
+        </div>
+        <span class="z-version">v0.1</span>
+    </div>
+    """, unsafe_allow_html=True)
+with btn_col:
+    st.markdown("<div style='padding-top:18px'>", unsafe_allow_html=True)
+    if st.button("new chat", use_container_width=True):
         clear_memory(st.session_state.session_id)
         st.session_state.session_id = str(uuid.uuid4())
         st.session_state.history = []
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Conversation
-# ---------------------------------------------------------------------------
+# Empty state
+if not st.session_state.history:
+    st.markdown("""
+    <div class="z-empty">
+        <p class="z-greeting">What do you want<br>to <span>know?</span></p>
+        <p class="z-byline">Built by Shravani · Local-first · No data leaves your machine</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Chat history
 for turn in st.session_state.history:
     role = "user" if turn["role"] == "user" else "assistant"
     with st.chat_message(role):
         st.markdown(turn["content"])
 
-user_input = st.chat_input("Message Zephyra...")
+# Input
+user_input = st.chat_input("Ask anything...")
 
 if user_input:
     with st.chat_message("user"):
