@@ -2,13 +2,16 @@
 Zephyra — CLI Interface
 -------------------------
 Thin I/O loop + slash-command dispatch. All thinking lives in brain.py,
-all persistence in memory.py. Failed LLM calls are NOT saved to memory.
+all persistence in memory.py. Uses a single stable session_id since
+there's only ever one user on a local machine — unlike the web UI, which
+generates a fresh session_id per browser session.
 """
 
 from brain import think, format_error
 from memory import load_memory, save_turn, clear_memory
 from tools import get_current_time, get_current_date, calculate, get_system_info
 
+SESSION_ID = "local-cli"  # stable across runs — this machine's one ongoing conversation
 MAX_INPUT_LENGTH = 2000
 
 HELP_TEXT = """
@@ -36,7 +39,7 @@ def print_history(history: list[dict]) -> None:
 
 
 def run_cli() -> None:
-    history = load_memory()
+    history = load_memory(SESSION_ID)
 
     print("Zephyra CLI — type /help for commands, /quit to exit.\n")
     if history:
@@ -64,7 +67,7 @@ def run_cli() -> None:
 
         if lower == "/clear":
             history.clear()
-            clear_memory()
+            clear_memory(SESSION_ID)
             print("Zephyra: Memory wiped — fresh start.\n")
             continue
 
@@ -74,7 +77,7 @@ def run_cli() -> None:
             continue
 
         if lower == "/sessions":
-            print("Zephyra: Multi-session support isn't built yet — that's Phase 2. Right now there's one continuous memory.\n")
+            print("Zephyra: Multi-session support isn't built yet — that's Phase 2.\n")
             continue
 
         if lower == "/time":
@@ -101,11 +104,11 @@ def run_cli() -> None:
             reply = think(user_input, history)
         except Exception as e:
             print(f"Zephyra: {format_error(e)}\n")
-            continue  # don't save a failed call to memory
+            continue
 
         print(f"Zephyra: {reply}\n")
 
-        save_turn(user_input, reply)
+        save_turn(SESSION_ID, user_input, reply)
         history.append({"role": "user", "content": user_input})
         history.append({"role": "zephyra", "content": reply})
 

@@ -1,3 +1,12 @@
+"""
+Zephyra — Brain Layer ("backend")
+-----------------------------------
+Pure LLM reasoning logic. Knows nothing about sessions, UI, or storage —
+it's handed a history list and returns a reply. This separation is what
+makes brain.py reusable across CLI, Streamlit, or any future frontend
+(React, FastAPI, etc.) without rewriting the thinking logic.
+"""
+
 import os
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
@@ -30,7 +39,6 @@ _prompt = PromptTemplate.from_template(
 
 
 def format_error(e: Exception) -> str:
-    """Turn a raw LLM-call exception into a readable, provider-specific message."""
     if LLM_PROVIDER == "groq":
         return f"Couldn't reach the model (Groq): {e}. Check your GROQ_API_KEY is set correctly."
     return (
@@ -43,7 +51,7 @@ def think(user_input: str, history: list[dict]) -> str:
     """
     Take the user's message + conversation history, return Zephyra's reply.
     Raises on LLM failure — callers must catch and decide what to do
-    (the CLI and Streamlit UI should NOT save a failed call into memory).
+    (don't save a failed call into memory).
     """
     tool_reply = try_handle_with_tool(user_input)
     if tool_reply is not None:
