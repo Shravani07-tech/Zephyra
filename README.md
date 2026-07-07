@@ -15,7 +15,7 @@ Zephyra is a CLI + web AI assistant built on LangChain, designed around clean se
 ## Features
 
 - 💬 Conversational chat — CLI and Streamlit web UI, same underlying brain
-- 🧠 Persistent memory — conversations survive a restart, with a 5-turn sliding context window so the model doesn't drown in old history
+- 🧠 Persistent memory — conversations survive a restart via a 5-turn sliding window (simple truncation, not staleness-aware yet — that's Phase 2)"
 - 🛠️ Built-in tools — current time, date, calculator, system info (CPU/RAM via `psutil`)
 - 🔁 Dual LLM backend — Ollama locally (free, private), Groq for the public demo, swapped via one env var
 - ⌨️ Slash commands — `/help /quit /clear /history /time /date /calc /sysinfo`
