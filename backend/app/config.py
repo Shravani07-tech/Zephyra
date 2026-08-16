@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     )
 
     # Server-side only. Must never be exposed to the frontend bundle.
-    anthropic_api_key: str | None = None
-    zephyra_model: str = "claude-sonnet-5"
+    nvidia_api_key: str | None = None
+    zephyra_model: str = "meta/llama-3.1-8b-instruct"
+    nvidia_api_base: str = "https://integrate.api.nvidia.com/v1"
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     # Explicit allowlist — never "*". The Vite dev server runs on 5173.
