@@ -34,3 +34,16 @@ def test_cors_rejects_an_unlisted_origin(client: TestClient) -> None:
     """An unknown origin gets no allow header — the allowlist is not a wildcard."""
     response = client.get("/api/health", headers={"Origin": "http://evil.example"})
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_system_status_endpoint(client: TestClient) -> None:
+    """The /api/system/status endpoint returns safe config details and never leaks secrets."""
+    response = client.get("/api/system/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "NVIDIA"
+    assert data["model"] == "meta/llama-3.1-8b-instruct"
+    assert data["status"] == "standby"
+    assert "nvidia_api_key" not in data
+    assert "nvidia_api_base" not in data
+    assert "api_key" not in str(data).lower()

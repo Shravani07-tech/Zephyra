@@ -13,6 +13,14 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
 
 
+class SystemStatusResponse(BaseModel):
+    """Safe system status metadata metadata response."""
+
+    provider: str
+    model: str
+    status: str
+
+
 class MessageResponse(BaseModel):
     """Represents a chat message response."""
 
