@@ -16,7 +16,7 @@ html, body, [class*="css"] {
 #MainMenu, footer, header { visibility: hidden; }
 
 .stApp {
-    background: #05080f;
+    background: #08090D;
 }
 
 .block-container {
@@ -31,16 +31,17 @@ html, body, [class*="css"] {
     align-items: center;
     justify-content: space-between;
     padding: 20px 0 16px;
-    border-bottom: 1px solid #080f1e;
+    border-bottom: 1px solid #0F1420;
     margin-bottom: 0;
-    background: #030508;
+    background: transparent;
 }
 
 .z-wordmark {
-    font-size: 15px;
-    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
     color: #ffffff;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     display: flex;
     align-items: center;
@@ -50,19 +51,28 @@ html, body, [class*="css"] {
 .z-dot {
     width: 6px;
     height: 6px;
-    background: #2563eb;
+    background: #00C9A7;
     border-radius: 50%;
     display: inline-block;
+    box-shadow: 0 0 8px rgba(0, 201, 167, 0.4);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .z-version {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
-    color: #1e3a5f;
+    color: #4A6382;
     letter-spacing: 0.05em;
-    padding: 2px 8px;
-    border: 1px solid #0e1a2e;
-    border-radius: 3px;
+    padding: 3px 8px;
+    border: 1px solid #1A2235;
+    border-radius: 4px;
+    background: #0D111A;
 }
 
 /* EMPTY STATE */
@@ -71,57 +81,25 @@ html, body, [class*="css"] {
 }
 
 .z-greeting {
-    font-size: 32px;
-    font-weight: 600;
-    color: #f0f4ff;
-    letter-spacing: -0.03em;
-    margin: 0 0 10px;
+    font-size: 36px;
+    font-weight: 500;
+    color: #F0F4FF;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
     line-height: 1.2;
+    text-align: left;
 }
 
 .z-greeting span {
-    color: #2563eb;
+    color: #00C9A7;
 }
 
 .z-byline {
-    font-size: 13px;
-    color: #1e3a5f;
+    font-size: 14px;
+    color: #4A6382;
     margin: 0 0 40px;
     font-weight: 400;
-}
-
-.z-suggestions {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    border: 1px solid #0e1525;
-    border-radius: 8px;
-    overflow: hidden;
-    max-width: 480px;
-}
-
-.z-suggestion {
-    padding: 12px 16px;
-    font-size: 13px;
-    color: #3d5a80;
-    background: #080d1a;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.z-suggestion:hover {
-    background: #0a1020;
-    color: #6b8cba;
-}
-
-.z-suggestion-arrow {
-    margin-left: auto;
-    color: #0e1a2e;
-    font-size: 11px;
+    letter-spacing: 0.01em;
 }
 
 /* MESSAGES */
@@ -130,79 +108,89 @@ html, body, [class*="css"] {
     border: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 div[data-testid="stChatMessageContent"] {
     background: transparent !important;
     border: none !important;
-    padding: 14px 0 !important;
-    border-bottom: 1px solid #0a1020 !important;
+    padding: 16px 0 !important;
+    border-bottom: 1px solid #0F1420 !important;
     border-radius: 0 !important;
 }
 
 div[data-testid="stChatMessageContent"] p {
-    color: #8ba3cc !important;
-    font-size: 14px !important;
-    line-height: 1.75 !important;
+    color: #8BA3CC !important;
+    font-size: 15px !important;
+    line-height: 1.7 !important;
     margin: 0 !important;
 }
 
 [data-testid="stChatMessage"][data-testid*="user"] div[data-testid="stChatMessageContent"] p,
 div[data-testid="stChatMessageContent"]:has(+ *) p {
-    color: #c8d8f0 !important;
+    color: #C8D8F0 !important;
 }
 
-/* differentiate user messages */
 [data-testid="stChatMessage"]:nth-child(odd) div[data-testid="stChatMessageContent"] p {
-    color: #d0dff5 !important;
+    color: #D0DFF5 !important;
 }
 
 /* INPUT */
 [data-testid="stChatInput"] {
-    background: #05080f !important;
-    border-top: 1px solid #0e1525 !important;
-    padding: 20px 0 !important;
+    background: transparent !important;
+    border-top: 1px solid #0F1420 !important;
+    padding: 24px 0 !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .stChatInput textarea {
-    background: #080d1a !important;
-    border: 1px solid #0e1a2e !important;
-    border-radius: 6px !important;
-    color: #c8d8f0 !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 14px !important;
-    caret-color: #2563eb !important;
-    padding: 14px 16px !important;
+    background: rgba(14, 16, 24, 0.7) !important;
+    border: 1px solid #1A2235 !important;
+    border-radius: 8px !important;
+    color: #C8D8F0 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 13px !important;
+    caret-color: #00C9A7 !important;
+    padding: 16px 20px !important;
+    transition: all 0.2s ease;
 }
 
 .stChatInput textarea:focus {
-    border-color: #1a3560 !important;
-    box-shadow: 0 0 0 2px rgba(37,99,235,0.06) !important;
+    border-color: #00C9A7 !important;
+    box-shadow: 0 0 0 1px #00C9A7, 0 4px 12px rgba(0, 201, 167, 0.1) !important;
     outline: none !important;
+    background: rgba(14, 16, 24, 0.9) !important;
 }
 
 .stChatInput textarea::placeholder {
-    color: #111d33 !important;
+    color: #2D3F56 !important;
 }
 
 /* NEW CHAT BUTTON */
 .stButton button {
     background: transparent !important;
-    border: 1px solid #0e1a2e !important;
-    border-radius: 4px !important;
-    color: #1e3a5f !important;
+    border: 1px solid #1A2235 !important;
+    border-radius: 6px !important;
+    color: #4A6382 !important;
     font-size: 11px !important;
     font-weight: 500 !important;
     font-family: 'JetBrains Mono', monospace !important;
-    letter-spacing: 0.04em !important;
-    padding: 6px 12px !important;
+    letter-spacing: 0.05em !important;
+    padding: 8px 14px !important;
     text-transform: uppercase !important;
+    transition: all 0.2s ease;
 }
 
 .stButton button:hover {
-    border-color: #1a3560 !important;
-    color: #3d6499 !important;
-    background: #080d1a !important;
+    border-color: #00C9A7 !important;
+    color: #00C9A7 !important;
+    background: rgba(0, 201, 167, 0.05) !important;
 }
 
 /* AVATAR — hidden completely */
