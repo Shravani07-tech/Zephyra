@@ -28,8 +28,13 @@ class Settings(BaseSettings):
     nvidia_api_base: str = "https://integrate.api.nvidia.com/v1"
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
-    # Explicit allowlist — never "*". The Vite dev server runs on 5173.
-    cors_origins: tuple[str, ...] = ("http://localhost:5173",)
+    # Explicit allowlist — never "*". The Vite dev server runs on 5173 or 5174.
+    cors_origins: tuple[str, ...] = (
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    )
 
 
 @lru_cache
