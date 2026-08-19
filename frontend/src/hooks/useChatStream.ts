@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import { mockApiClient } from "../api/client";
 import type { Conversation, Message } from "../api/types";
+import { useSpeech } from "./useSpeech";
 
 export type SemanticStatus = "Standby" | "Listening" | "Thinking" | "Processing" | "Speaking";
 
@@ -13,6 +14,15 @@ export function useChatStream() {
   const [streamingText, setStreamingText] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [status, setStatus] = useState<SemanticStatus>("Standby");
+
+  const activeRequestIdRef = useRef<number | null>(null);
+  const shouldPreventLoadRef = useRef<boolean>(false);
+
+  const { speak, stop: stopSpeech } = useSpeech({
+    onEnd: () => {
+      setStatus((prev) => (prev === "Speaking" ? "Standby" : prev));
+    },
+  });
 
   const loadConversations = async () => {
     try {
@@ -33,6 +43,11 @@ export function useChatStream() {
   }, []);
 
   useEffect(() => {
+    if (shouldPreventLoadRef.current) {
+      shouldPreventLoadRef.current = false;
+      return;
+    }
+
     if (activeConversationId) {
       const loadMessages = async () => {
         try {
@@ -53,6 +68,7 @@ export function useChatStream() {
     setStreamingText("");
     setIsStreaming(false);
     setStatus("Standby");
+    stopSpeech();
   };
 
   const deleteConversation = async (id: string) => {
@@ -67,8 +83,19 @@ export function useChatStream() {
     selectConversation(null);
   };
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isStreaming) return;
+  const sendMessage = async (text: string, isVoice: boolean = false) => {
+    if (!text.trim() || isStreaming) {
+      if (!text.trim()) {
+        setStatus("Standby");
+      }
+      return;
+    }
+
+    const currentRequestId = Date.now();
+    activeRequestIdRef.current = currentRequestId;
+
+    // Interrupt/cancel previous speech when a new message starts
+    stopSpeech();
 
     setStatus("Thinking");
     setIsStreaming(true);
@@ -85,18 +112,28 @@ export function useChatStream() {
     setMessages((prev) => [...prev, localUserMsg]);
 
     let resolvedId = activeConversationId;
+    let hasReceivedChunk = false;
 
     try {
       await mockApiClient.sendMessageStream(
         activeConversationId,
         text,
         (chunk) => {
-          setStatus("Speaking");
+          if (activeRequestIdRef.current !== currentRequestId) return;
+
+          if (!hasReceivedChunk) {
+            hasReceivedChunk = true;
+            setStatus("Processing");
+          }
           setStreamingText((prev) => prev + chunk);
         },
         (newId) => {
+          if (activeRequestIdRef.current !== currentRequestId) return;
           resolvedId = newId;
-          setActiveConversationId(newId);
+          if (activeConversationId !== newId) {
+            shouldPreventLoadRef.current = true;
+            setActiveConversationId(newId);
+          }
           loadConversations();
         },
         (errorMsg) => {
@@ -104,17 +141,39 @@ export function useChatStream() {
         }
       );
 
+      if (activeRequestIdRef.current !== currentRequestId) return;
+
       // Re-fetch persisted message history upon stream success
+      let finalMessages: Message[] = [];
       if (resolvedId) {
-        const finalMessages = await mockApiClient.getConversationMessages(resolvedId);
+        finalMessages = await mockApiClient.getConversationMessages(resolvedId);
         setMessages(finalMessages);
+      }
+
+      // Stream completed successfully. Handle TTS if requested
+      if (isVoice) {
+        const assistantMessage = finalMessages.findLast((m) => m.role === "assistant") || 
+          (finalMessages.length > 0 ? finalMessages[finalMessages.length - 1] : null);
+        const speakText = assistantMessage?.content || "";
+        if (speakText) {
+          setStatus("Speaking");
+          speak(speakText);
+        } else {
+          setStatus("Standby");
+        }
+      } else {
+        setStatus("Standby");
       }
     } catch (err) {
       console.error("Failed to execute message stream", err);
+      if (activeRequestIdRef.current === currentRequestId) {
+        setStatus("Standby");
+      }
     } finally {
-      setIsStreaming(false);
-      setStreamingText("");
-      setStatus("Standby");
+      if (activeRequestIdRef.current === currentRequestId) {
+        setIsStreaming(false);
+        setStreamingText("");
+      }
     }
   };
 
@@ -131,5 +190,6 @@ export function useChatStream() {
     selectConversation,
     deleteConversation,
     createNewConversation,
+    stopSpeech,
   };
 }

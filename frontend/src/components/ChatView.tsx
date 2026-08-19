@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Trash2, Terminal, Cpu } from "lucide-react";
 
 import { useChatStream } from "../hooks/useChatStream";
@@ -22,11 +22,27 @@ export const ChatView: React.FC = () => {
     createNewConversation,
     selectConversation,
     deleteConversation,
+    stopSpeech,
   } = useChatStream();
 
-  const { isListening, volume, toggleListening } = useVoiceInput((transcript) => {
-    sendMessage(transcript);
-  });
+  const { isListening, volume, toggleListening } = useVoiceInput(
+    (transcript) => {
+      sendMessage(transcript, true);
+    },
+    (errorMsg) => {
+      console.error("Voice input error:", errorMsg);
+      setStatus("Standby");
+      alert(`Microphone Error: ${errorMsg}`);
+    }
+  );
+
+  const handleVoiceToggle = useCallback(() => {
+    if (!isListening) {
+      stopSpeech();
+      setStatus("Listening");
+    }
+    toggleListening();
+  }, [isListening, stopSpeech, setStatus, toggleListening]);
 
   // Sidebar Layout States
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -43,7 +59,7 @@ export const ChatView: React.FC = () => {
     let active = true;
     const fetchSystemStatus = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/system/status");
+        const response = await fetch("http://127.0.0.1:8000/api/system/status");
         if (response.ok && active) {
           const data = await response.json();
           setSystemConfig(data);
@@ -58,14 +74,12 @@ export const ChatView: React.FC = () => {
     };
   }, []);
 
-  // Sync vocal recording states to ambient global status
+  // Sync vocal recording states to ambient global status safely
   useEffect(() => {
-    if (isListening) {
-      setStatus("Listening");
-    } else if (status === "Listening") {
-      setStatus("Standby");
+    if (!isListening) {
+      setStatus((prev) => (prev === "Listening" ? "Standby" : prev));
     }
-  }, [isListening, status, setStatus]);
+  }, [isListening, setStatus]);
 
   // Global space key handler for immediate voice interaction
   useEffect(() => {
@@ -81,7 +95,7 @@ export const ChatView: React.FC = () => {
 
       if (e.code === "Space") {
         e.preventDefault();
-        toggleListening();
+        handleVoiceToggle();
       }
     };
 
@@ -89,7 +103,7 @@ export const ChatView: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [toggleListening]);
+  }, [handleVoiceToggle]);
 
   const hasMessages = messages.length > 0 || isStreaming;
 
@@ -101,7 +115,7 @@ export const ChatView: React.FC = () => {
   return (
     <div className="h-full w-full flex flex-col bg-zephyra-bg text-zephyra-text-primary overflow-hidden relative">
       {/* Atmospheric dynamic canvas layer */}
-      <BackgroundAtmosphere />
+      <BackgroundAtmosphere status={status} isHistoryOpen={isHistoryOpen} isSystemOpen={isSystemOpen} />
 
       {/* Top Banner Control */}
       <NavBar
@@ -183,7 +197,7 @@ export const ChatView: React.FC = () => {
             />
           ) : (
             <EmptyState
-              onMicClick={toggleListening}
+              onMicClick={handleVoiceToggle}
               status={status}
               isListening={isListening}
               volume={volume}
@@ -192,7 +206,7 @@ export const ChatView: React.FC = () => {
 
           <Composer
             onSend={sendMessage}
-            onMicClick={toggleListening}
+            onMicClick={handleVoiceToggle}
             isListening={isListening}
             isSending={isStreaming}
             volume={volume}

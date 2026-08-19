@@ -1,4 +1,5 @@
 import React from "react";
+import ReactMarkdown from "react-markdown";
 import type { Message as MessageType } from "../api/types";
 
 interface MessageProps {
@@ -34,8 +35,34 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
           </div>
         ) : (
           <div className="border-l-2 border-zephyra-accent/40 pl-4 py-0.5 text-left">
-            <div className="font-sans leading-relaxed text-sm tracking-wide text-zephyra-text-primary font-normal whitespace-pre-wrap break-words">
-              {message.content}
+            <div className="font-sans leading-relaxed text-sm tracking-wide text-zephyra-text-primary font-normal break-words">
+              <ReactMarkdown
+                components={{
+                  h1: (props) => <h1 className="text-base font-bold my-3 text-zephyra-accent" {...props} />,
+                  h2: (props) => <h2 className="text-sm font-bold my-2 text-zephyra-accent" {...props} />,
+                  h3: (props) => <h3 className="text-xs font-bold my-1 text-zephyra-text-primary" {...props} />,
+                  p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
+                  ul: (props) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
+                  ol: (props) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
+                  li: (props) => <li className="pl-0.5 mb-0.5" {...props} />,
+                  pre: (props) => <pre className="bg-[#08090D]/60 border border-zephyra-border-surface/40 p-3 rounded-lg overflow-x-auto my-3 font-mono text-xs text-zephyra-text-primary custom-scrollbar" {...props} />,
+                  code: ({ className, children, ...props }) => {
+                    const isInline = !className;
+                    return isInline ? (
+                      <code className="bg-[#1A2235]/40 text-zephyra-accent px-1.5 py-0.5 rounded font-mono text-[11px]" {...props}>
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="font-mono text-xs text-zephyra-text-primary" {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  a: (props) => <a className="text-zephyra-accent hover:underline" target="_blank" rel="noopener noreferrer" {...props} />
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           </div>
         )}
@@ -43,4 +70,3 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
     </div>
   );
 };
-
