@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Trash2, Terminal, Cpu } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { useChatStream } from "../hooks/useChatStream";
 import { useVoiceInput } from "../hooks/useVoiceInput";
@@ -115,7 +116,7 @@ export const ChatView: React.FC = () => {
   return (
     <div className="h-full w-full flex flex-col bg-zephyra-bg text-zephyra-text-primary overflow-hidden relative">
       {/* Atmospheric dynamic canvas layer */}
-      <BackgroundAtmosphere status={status} isHistoryOpen={isHistoryOpen} isSystemOpen={isSystemOpen} />
+      <BackgroundAtmosphere status={status} isHistoryOpen={isHistoryOpen} isSystemOpen={isSystemOpen} volume={volume} isListening={isListening} />
 
       {/* Top Banner Control */}
       <NavBar
@@ -130,62 +131,72 @@ export const ChatView: React.FC = () => {
       <div className="flex-1 w-full flex overflow-hidden relative z-10">
         
         {/* Left Side: Conversation Threads History */}
-        <aside 
-          className={`absolute md:relative z-20 w-72 h-full border-r border-zephyra-border-hairline/20 bg-[#08090D]/90 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none transition-all duration-300 flex flex-col shrink-0 ${
-            isHistoryOpen ? "translate-x-0" : "-translate-x-full md:hidden"
-          }`}
-        >
-          {/* Header */}
-          <div className="p-4 border-b border-zephyra-border-hairline/20 flex items-center gap-2 select-none h-[72px]">
-            <Terminal className="w-3.5 h-3.5 text-zephyra-accent" />
-            <span className="font-mono text-[9px] tracking-[0.2em] text-zephyra-text-muted uppercase">Recent Threads</span>
-          </div>
-
-          {/* List Scroll */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5">
-            {conversations.length === 0 ? (
-              <div className="p-6 text-center select-none">
-                <span className="font-mono text-[9px] text-zephyra-text-veryMuted uppercase tracking-wider">No active threads</span>
-              </div>
-            ) : (
-              conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  className={`group relative w-full flex items-center justify-between p-3 rounded-lg border text-left cursor-pointer transition-all duration-200 overflow-hidden ${
-                    activeConversationId === conv.id
-                      ? "border-zephyra-border-surface bg-zephyra-border-hairline/40 text-zephyra-text-primary shadow-sm"
-                      : "border-transparent text-zephyra-text-muted hover:text-zephyra-text-primary hover:bg-[#1A2235]/15"
-                  }`}
-                  onClick={() => selectConversation(conv.id)}
-                >
-                  {/* Left edge active indicator */}
-                  {activeConversationId === conv.id && (
-                    <div className="absolute left-0 top-1/4 bottom-1/4 w-[1.5px] bg-zephyra-accent" />
-                  )}
-                  
-                  <div className="flex flex-col gap-1 min-w-0 pr-2 pl-1">
-                    <span className="font-mono text-[9px] tracking-wide truncate">
-                      session_{conv.id.substring(0, 8)}
-                    </span>
-                    <span className="font-mono text-[8px] text-zephyra-text-veryMuted">
-                      {formatTime(conv.created_at)}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteConversation(conv.id);
-                    }}
-                    aria-label="Delete thread"
-                    className="p-1 rounded text-zephyra-text-veryMuted hover:text-red-400 hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all border-0 bg-transparent cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+        <AnimatePresence initial={false}>
+          {isHistoryOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 288, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute left-0 md:relative z-20 h-full border-r border-zephyra-border-hairline/20 bg-[#08090D]/95 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none flex flex-col shrink-0 overflow-hidden"
+            >
+              <div className="w-72 h-full flex flex-col">
+                {/* Header aligned to 64px NavBar */}
+                <div className="p-4 border-b border-zephyra-border-hairline/20 flex items-center gap-2 select-none h-[64px]">
+                  <Terminal className="w-3.5 h-3.5 text-zephyra-accent" />
+                  <span className="font-mono text-[9px] tracking-[0.2em] text-zephyra-text-muted uppercase">Recent Threads</span>
                 </div>
-              ))
-            )}
-          </div>
-        </aside>
+
+                {/* List Scroll */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
+                  {conversations.length === 0 ? (
+                    <div className="p-6 text-center select-none">
+                      <span className="font-mono text-[8px] text-zephyra-text-veryMuted uppercase tracking-widest">No active threads</span>
+                    </div>
+                  ) : (
+                    conversations.map((conv) => (
+                      <motion.div
+                        key={conv.id}
+                        whileHover={{ backgroundColor: "rgba(26, 34, 53, 0.2)" }}
+                        transition={{ duration: 0.2 }}
+                        className={`group relative w-full flex items-center justify-between p-3 rounded-md border text-left cursor-pointer border-b border-zephyra-border-hairline/15 ${
+                          activeConversationId === conv.id
+                            ? "border-zephyra-border-surface/40 bg-zephyra-border-hairline/35 text-zephyra-text-primary shadow-xs"
+                            : "border-transparent text-zephyra-text-muted hover:text-zephyra-text-primary"
+                        }`}
+                        onClick={() => selectConversation(conv.id)}
+                      >
+                        {/* Left edge active indicator */}
+                        {activeConversationId === conv.id && (
+                          <div className="absolute left-0 top-1/4 bottom-1/4 w-[1px] bg-zephyra-accent" />
+                        )}
+
+                        <div className="flex flex-col gap-0.5 min-w-0 pr-2 pl-1 font-mono">
+                          <span className="text-[9px] tracking-wide truncate">
+                            session_{conv.id.substring(0, 8)}
+                          </span>
+                          <span className="text-[8px] text-zephyra-text-veryMuted">
+                            {formatTime(conv.created_at)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteConversation(conv.id);
+                          }}
+                          aria-label="Delete thread"
+                          className="p-1 rounded text-zephyra-text-veryMuted hover:text-red-400 hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all border-0 bg-transparent cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
 
         {/* Main Interaction Feed */}
         <main className="flex-1 flex flex-col items-center justify-between overflow-hidden relative">
@@ -210,69 +221,74 @@ export const ChatView: React.FC = () => {
             isListening={isListening}
             isSending={isStreaming}
             volume={volume}
+            status={status}
           />
         </main>
 
         {/* Right Side: Context & System Monitors */}
-        <aside 
-          className={`absolute right-0 md:relative z-20 w-72 h-full border-l border-zephyra-border-hairline/20 bg-[#08090D]/90 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none transition-all duration-300 flex flex-col shrink-0 ${
-            isSystemOpen ? "translate-x-0" : "translate-x-full md:hidden"
-          }`}
-        >
-          {/* Header */}
-          <div className="p-4 border-b border-zephyra-border-hairline/20 flex items-center gap-2 select-none h-[72px]">
-            <Cpu className="w-3.5 h-3.5 text-zephyra-accent" />
-            <span className="font-mono text-[9px] tracking-[0.2em] text-zephyra-text-muted uppercase">System Monitor</span>
-          </div>
+        <AnimatePresence initial={false}>
+          {isSystemOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 288, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute right-0 md:relative z-20 h-full border-l border-zephyra-border-hairline/20 bg-[#08090D]/95 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none flex flex-col shrink-0 overflow-hidden"
+            >
+              <div className="w-72 h-full flex flex-col">
+                {/* Header aligned to 64px NavBar */}
+                <div className="p-4 border-b border-zephyra-border-hairline/20 flex items-center gap-2 select-none h-[64px]">
+                  <Cpu className="w-3.5 h-3.5 text-zephyra-accent" />
+                  <span className="font-mono text-[9px] tracking-[0.2em] text-zephyra-text-muted uppercase">System Monitor</span>
+                </div>
 
-          {/* Metric details */}
-          <div className="p-4 space-y-4 select-none font-mono text-[9px] text-zephyra-text-muted uppercase tracking-widest">
-            <div className="space-y-1">
-              <span className="text-zephyra-text-veryMuted block">Active Status</span>
-              <span className="text-zephyra-text-primary text-xs font-semibold block">{status}</span>
-            </div>
+                {/* Telemetry Metric details (Structured tabular telemetry) */}
+                <div className="p-4 space-y-2 select-none font-mono text-[9px] text-zephyra-text-muted uppercase tracking-widest text-left">
+                  <div className="grid grid-cols-2 py-2 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">STATUS</span>
+                    <span className="text-zephyra-text-primary font-semibold text-right">{status}</span>
+                  </div>
 
-            <div className="space-y-1 border-t border-zephyra-border-hairline/15 pt-3">
-              <span className="text-zephyra-text-veryMuted block">System Provider</span>
-              <span className="text-zephyra-text-primary font-semibold block">{systemConfig.provider}</span>
-            </div>
+                  <div className="grid grid-cols-2 py-2 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">PROVIDER</span>
+                    <span className="text-zephyra-text-primary font-semibold text-right">{systemConfig.provider}</span>
+                  </div>
 
-            <div className="space-y-1 border-t border-zephyra-border-hairline/15 pt-3">
-              <span className="text-zephyra-text-veryMuted block">Active Core Model</span>
-              <span className="text-zephyra-text-primary font-normal block lowercase text-[9px] truncate" title={systemConfig.model}>
-                {systemConfig.model}
-              </span>
-            </div>
+                  <div className="flex flex-col gap-1 py-2.5 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">CORE MODEL</span>
+                    <span className="text-zephyra-text-primary font-light lowercase text-[8px] truncate mt-0.5 block" title={systemConfig.model}>
+                      {systemConfig.model}
+                    </span>
+                  </div>
 
-            <div className="space-y-1.5 border-t border-zephyra-border-hairline/15 pt-3">
-              <span className="text-zephyra-text-veryMuted block">Context Util</span>
-              <div className="flex items-center gap-1.5 font-mono text-[8px] tracking-normal lowercase">
-                <span className="text-zephyra-accent font-semibold tracking-wider font-mono">[■■□□□□□□□□]</span>
-                <span className="text-zephyra-text-primary">0.32%</span>
+                  <div className="grid grid-cols-2 py-2 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">CONTEXT UTIL</span>
+                    <div className="flex items-center justify-end gap-1 font-mono text-[8px] tracking-normal lowercase text-right">
+                      <span className="text-zephyra-accent font-semibold tracking-wider font-mono">[■■□□□□]</span>
+                      <span className="text-zephyra-text-primary">0.32%</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 py-2.5 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">SUBSYSTEMS</span>
+                    <div className="flex flex-wrap gap-1.5 lowercase tracking-normal mt-1">
+                      <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted text-[8px]">memory</span>
+                      <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted text-[8px]">speech-api</span>
+                      <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted text-[8px]">voice-input</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 py-2 border-b border-zephyra-border-hairline/15">
+                    <span className="text-zephyra-text-veryMuted">SHELL ENGINE</span>
+                    <span className="text-zephyra-accent font-normal text-right">OPERATIONAL</span>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-2 border-t border-zephyra-border-hairline/15 pt-3">
-              <span className="text-zephyra-text-veryMuted block">Loaded Subsystems</span>
-              <div className="flex flex-wrap gap-1.5 lowercase tracking-normal">
-                <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted">memory</span>
-                <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted">speech-api</span>
-                <span className="px-1.5 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 text-zephyra-text-muted">voice-input</span>
-              </div>
-            </div>
-
-            <div className="space-y-1 border-t border-zephyra-border-hairline/15 pt-3">
-              <span className="text-zephyra-text-veryMuted block">Visual Shell Engine</span>
-              <div className="flex items-center gap-1.5 text-zephyra-text-primary font-normal">
-                <span className="h-1.5 w-1.5 rounded-full bg-zephyra-accent animate-pulse-subtle inline-block" />
-                <span>operational</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+            </motion.aside>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>
   );
 };
-

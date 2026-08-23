@@ -1,5 +1,6 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import { motion } from "framer-motion";
 import type { Message as MessageType } from "../api/types";
 
 interface MessageProps {
@@ -10,26 +11,29 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   const isUser = message.role === "user";
 
   return (
-    <div
-      className={`w-full flex flex-col py-4 opacity-0 animate-message-reveal ${
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className={`w-full flex flex-col py-4 ${
         isUser ? "items-end" : "items-start"
       }`}
     >
-      <div className={`${isUser ? "max-w-[90%] md:max-w-[620px]" : "w-full"}`}>
+      <div className={`${isUser ? "w-full" : "w-full"}`}>
         {/* Technical mono label */}
-        <div className={`flex items-center gap-2 font-mono text-[8px] md:text-[9px] tracking-widest uppercase text-zephyra-text-veryMuted mb-2.5 select-none ${
-          isUser ? "justify-end" : "justify-start"
+        <div className={`flex items-center gap-2 font-mono text-[8px] md:text-[9px] tracking-widest uppercase text-zephyra-text-veryMuted mb-2 select-none ${
+          isUser ? "justify-end pr-4" : "justify-start pl-4"
         }`}>
           {!isUser && (
-            <span className="h-1.5 w-1.5 rounded-full bg-zephyra-accent shadow-[0_0_8px_rgba(0,201,167,0.4)]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-zephyra-accent shadow-[0_0_8px_rgba(0,229,255,0.45)]" />
           )}
-          <span>{isUser ? "User Node" : "Zephyra Response"}</span>
+          <span>{isUser ? "User Node" : "System Output"}</span>
         </div>
 
-        {/* Message bubble / accent line */}
+        {/* Message Accent Rails (No Bubbles) */}
         {isUser ? (
-          <div className="bg-[#1A2235]/15 border border-zephyra-border-surface/50 rounded-2xl rounded-tr-sm px-4.5 py-3.5 shadow-sm text-left">
-            <div className="font-sans leading-relaxed text-sm tracking-wide text-zephyra-text-secondary font-normal whitespace-pre-wrap break-words">
+          <div className="border-r-2 border-zephyra-border-surface/40 pr-4 py-0.5 text-right w-full flex justify-end">
+            <div className="font-sans leading-relaxed text-sm tracking-wide text-zephyra-text-secondary font-light whitespace-pre-wrap break-words max-w-[620px]">
               {message.content}
             </div>
           </div>
@@ -67,6 +71,6 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

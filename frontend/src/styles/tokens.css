@@ -18,7 +18,7 @@
 
 :root {
   --bg-primary: #020407;
-  --accent: #00C9A7;
+  --accent: #00E5FF;
   --text-primary: #F0F4FF;
   --text-secondary: #C8D8F0;
   --text-muted: #8BA3CC;
@@ -29,14 +29,14 @@
   /* Premium Design Tokens */
   --glass-bg: rgba(2, 4, 7, 0.78);
   --glass-border: rgba(26, 34, 53, 0.65);
-  --accent-glow: rgba(0, 201, 167, 0.15);
+  --accent-glow: rgba(0, 229, 255, 0.18);
   --shadow-premium: 0 12px 40px -10px rgba(0, 0, 0, 0.7);
 }
 
 body {
   margin: 0;
   background-color: var(--bg-primary);
-  background-image: radial-gradient(circle at 50% 50%, rgba(0, 201, 167, 0.01) 0%, transparent 80%);
+  background-image: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.02) 0%, transparent 80%);
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
