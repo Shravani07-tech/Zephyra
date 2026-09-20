@@ -19,6 +19,11 @@ def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
     return db.query(Conversation).filter(Conversation.id == conversation_id).first()
 
 
+def get_message(db: Session, message_id: int) -> Message | None:
+    """Retrieve a single message by its ID."""
+    return db.query(Message).filter(Message.id == message_id).first()
+
+
 def list_conversations(db: Session) -> list[Conversation]:
     """Retrieve all conversations, ordered by created_at descending."""
     return db.query(Conversation).order_by(Conversation.created_at.desc()).all()

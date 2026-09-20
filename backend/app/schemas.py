@@ -55,8 +55,12 @@ class ChatRequest(BaseModel):
         None,
         description="Optional conversation UUID. If omitted, a new conversation is created.",
     )
-    message: str = Field(
-        ...,
+    message: str | None = Field(
+        None,
         max_length=2000,
-        description="The chat message content (maximum 2000 characters).",
+        description="The chat message content (maximum 2000 characters). Required if retry_message_id is absent.",
+    )
+    retry_message_id: int | None = Field(
+        None,
+        description="Optional ID of an existing user message to retry/regenerate.",
     )

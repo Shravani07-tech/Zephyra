@@ -130,16 +130,23 @@ export function selectBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesis
   return voices[0];
 }
 
+export type VoicePlaybackState = "idle" | "speaking" | "paused";
+
 export function useSpeech(options?: { onEnd?: () => void }) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoicePlaybackState>("idle");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const chunkQueueRef = useRef<string[]>([]);
-  const isSpeakingRef = useRef(false);
+  const voiceStateRef = useRef<VoicePlaybackState>("idle");
   const activeVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   // Tracks active speech session counter to prevent race conditions with stale callbacks
   const activeSessionIdRef = useRef<number>(0);
+
+  const updateVoiceState = (newState: VoicePlaybackState) => {
+    voiceStateRef.current = newState;
+    setVoiceState(newState);
+  };
 
   // Initialize and track available voices asynchronously
   useEffect(() => {
@@ -171,9 +178,8 @@ export function useSpeech(options?: { onEnd?: () => void }) {
     // Reject stale session callbacks immediately
     if (sessionId !== activeSessionIdRef.current) return;
 
-    if (chunkQueueRef.current.length === 0 || !isSpeakingRef.current) {
-      setIsSpeaking(false);
-      isSpeakingRef.current = false;
+    if (chunkQueueRef.current.length === 0 || voiceStateRef.current === "idle") {
+      updateVoiceState("idle");
       options?.onEnd?.();
       return;
     }
@@ -206,9 +212,8 @@ export function useSpeech(options?: { onEnd?: () => void }) {
         console.log("Speech synthesis chunk error or interrupt:", event.error);
         if (sessionId !== activeSessionIdRef.current) return;
 
-        if (event.error === "interrupted") {
-          setIsSpeaking(false);
-          isSpeakingRef.current = false;
+        if (event.error === "interrupted" || event.error === "canceled") {
+          updateVoiceState("idle");
           options?.onEnd?.();
         } else {
           // Play remaining chunks on other non-fatal errors
@@ -236,8 +241,7 @@ export function useSpeech(options?: { onEnd?: () => void }) {
     try {
       // Cancel any active utterance and reset state
       window.speechSynthesis.cancel();
-      isSpeakingRef.current = false;
-      setIsSpeaking(false);
+      updateVoiceState("idle");
 
       // Clean, sanitize, and partition text into sentence chunks
       const sanitizedText = prepareSpeechText(text);
@@ -249,26 +253,47 @@ export function useSpeech(options?: { onEnd?: () => void }) {
         return;
       }
 
-      setIsSpeaking(true);
-      isSpeakingRef.current = true;
+      updateVoiceState("speaking");
       speakNextChunk(sessionId);
     } catch (error) {
       console.error("Failed to start speech synthesis:", error);
-      setIsSpeaking(false);
-      isSpeakingRef.current = false;
+      updateVoiceState("idle");
       options?.onEnd?.();
+    }
+  };
+
+  const pause = () => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (voiceStateRef.current !== "speaking") return;
+
+    try {
+      window.speechSynthesis.pause();
+      updateVoiceState("paused");
+    } catch (e) {
+      console.error("Error pausing speech synthesis:", e);
+    }
+  };
+
+  const resume = () => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (voiceStateRef.current !== "paused") return;
+
+    try {
+      window.speechSynthesis.resume();
+      updateVoiceState("speaking");
+    } catch (e) {
+      console.error("Error resuming speech synthesis:", e);
     }
   };
 
   const stop = () => {
     // Increment session ID to cancel callbacks from ongoing utterance chunk transitions
     activeSessionIdRef.current++;
-    isSpeakingRef.current = false;
     chunkQueueRef.current = [];
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    setIsSpeaking(false);
+    updateVoiceState("idle");
     options?.onEnd?.();
   };
 
@@ -282,8 +307,12 @@ export function useSpeech(options?: { onEnd?: () => void }) {
   }, []);
 
   return {
-    isSpeaking,
+    voiceState,
+    isSpeaking: voiceState === "speaking",
+    isPaused: voiceState === "paused",
     speak,
+    pause,
+    resume,
     stop,
     voices,
     selectedVoice: activeVoiceRef.current,

@@ -42,7 +42,8 @@ def test_system_status_endpoint(client: TestClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["provider"] == "NVIDIA"
-    assert data["model"] == "meta/llama-3.1-8b-instruct"
+    assert data["model"] == "meta/llama-3.2-11b-vision-instruct"
+
     assert data["status"] == "standby"
     assert "nvidia_api_key" not in data
     assert "nvidia_api_base" not in data

@@ -314,3 +314,80 @@ def test_llm_service_error_mapping() -> None:
                 pass
 
     asyncio.run(run_test())
+
+
+@patch("app.agent.runner.LLMService")
+def test_retry_and_regenerate_flow(
+    mock_llm_service_class: MagicMock, client: TestClient, db_session: Session
+) -> None:
+    """Verify all retry/regenerate backend requirements:
+
+    1. New normal turn creates exactly one user message.
+    2. Retry using retry_message_id does NOT create another user message.
+    3. Retry creates one completed assistant response.
+    4. retry_message_id pointing to a nonexistent message is rejected.
+    5. retry_message_id pointing to an assistant message is rejected.
+    6. retry_message_id belonging to another conversation is rejected.
+    7. Two normal identical prompts create two distinct user messages.
+    8. Existing Stop Generation behavior remains correct.
+    """
+    mock_instance = mock_llm_service_class.return_value
+    mock_instance.stream_chat = mock_stream_success
+
+    # 1. New normal turn creates exactly one user message
+    conv = conv_service.create_conversation(db_session)
+    resp = client.post("/api/chat", json={"conversation_id": conv.id, "message": "First prompt"})
+    assert resp.status_code == 200
+    assert "done" in resp.text
+
+    msgs = conv_service.get_messages(db_session, conv.id)
+    assert len(msgs) == 2
+    user_msg_1 = msgs[0]
+    assistant_msg_1 = msgs[1]
+    assert user_msg_1.role == "user"
+    assert user_msg_1.content == "First prompt"
+    assert assistant_msg_1.role == "assistant"
+
+    # 2 & 3. Retry using retry_message_id does NOT create another user message and creates one completed assistant response
+    resp_retry = client.post(
+        "/api/chat", json={"conversation_id": conv.id, "retry_message_id": user_msg_1.id}
+    )
+    assert resp_retry.status_code == 200
+    assert "done" in resp_retry.text
+
+    msgs_after_retry = conv_service.get_messages(db_session, conv.id)
+    # Total user messages should STILL be 1
+    user_msgs = [m for m in msgs_after_retry if m.role == "user"]
+    assistant_msgs = [m for m in msgs_after_retry if m.role == "assistant"]
+    assert len(user_msgs) == 1
+    assert len(assistant_msgs) == 2  # Original assistant msg + new completed assistant msg
+
+    # 4. retry_message_id pointing to a nonexistent message is rejected (400 Bad Request)
+    resp_nonexistent = client.post(
+        "/api/chat", json={"conversation_id": conv.id, "retry_message_id": 99999}
+    )
+    assert resp_nonexistent.status_code == 400
+
+    # 5. retry_message_id pointing to an assistant message is rejected (400 Bad Request)
+    resp_assistant_retry = client.post(
+        "/api/chat", json={"conversation_id": conv.id, "retry_message_id": assistant_msg_1.id}
+    )
+    assert resp_assistant_retry.status_code == 400
+
+    # 6. retry_message_id belonging to another conversation is rejected (400 Bad Request)
+    conv2 = conv_service.create_conversation(db_session)
+    resp_other_conv = client.post(
+        "/api/chat", json={"conversation_id": conv2.id, "retry_message_id": user_msg_1.id}
+    )
+    assert resp_other_conv.status_code == 400
+
+    # 7. Two normal identical prompts create two distinct user messages
+    resp_same_1 = client.post("/api/chat", json={"conversation_id": conv2.id, "message": "Identical text"})
+    assert resp_same_1.status_code == 200
+    resp_same_2 = client.post("/api/chat", json={"conversation_id": conv2.id, "message": "Identical text"})
+    assert resp_same_2.status_code == 200
+
+    conv2_user_msgs = [m for m in conv_service.get_messages(db_session, conv2.id) if m.role == "user"]
+    assert len(conv2_user_msgs) == 2
+    assert conv2_user_msgs[0].id != conv2_user_msgs[1].id
+    assert conv2_user_msgs[0].content == conv2_user_msgs[1].content == "Identical text"

@@ -4,6 +4,10 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  isError?: boolean;
+  isAborted?: boolean;
+  errorText?: string;
+  userMessageId?: number;
 }
 
 export interface Conversation {

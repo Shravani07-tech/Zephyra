@@ -6,12 +6,14 @@ interface MessageListProps {
   messages: MessageType[];
   streamingText?: string;
   isStreaming?: boolean;
+  onRetry?: (userMessageId: number) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   streamingText = "",
   isStreaming = false,
+  onRetry,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +26,12 @@ export const MessageList: React.FC<MessageListProps> = ({
       
       {/* Persisted message turns */}
       {messages.map((msg) => (
-        <Message key={msg.id} message={msg} />
+        <Message
+          key={msg.id}
+          message={msg}
+          onRetry={onRetry}
+          isStreaming={isStreaming}
+        />
       ))}
 
       {/* Streaming response turn */}
@@ -37,6 +44,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             content: streamingText,
             created_at: new Date().toISOString(),
           }}
+          isStreaming={isStreaming}
         />
       )}
 

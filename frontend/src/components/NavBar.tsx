@@ -1,10 +1,11 @@
 import React from "react";
-import { Plus, Menu, Cpu } from "lucide-react";
+import { Plus, Cpu, PanelLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SemanticStatus } from "../hooks/useChatStream";
 
 interface NavBarProps {
   status: SemanticStatus;
+  systemConfig?: { provider: string; model: string; status: string };
   onNewChat: () => void;
   isHistoryOpen: boolean;
   isSystemOpen: boolean;
@@ -14,6 +15,7 @@ interface NavBarProps {
 
 export const NavBar: React.FC<NavBarProps> = ({
   status,
+  systemConfig,
   onNewChat,
   isHistoryOpen,
   isSystemOpen,
@@ -23,20 +25,23 @@ export const NavBar: React.FC<NavBarProps> = ({
   const getStatusColor = () => {
     switch (status) {
       case "Listening":
-        return "bg-zephyra-accent";
+        return "bg-zephyra-accent shadow-[0_0_10px_rgba(0,229,255,0.7)]";
       case "Thinking":
-        return "bg-amber-500";
+        return "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]";
       case "Processing":
-        return "bg-indigo-500";
+        return "bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.6)]";
       case "Speaking":
-        return "bg-teal-400";
+        return "bg-teal-300 shadow-[0_0_10px_rgba(94,234,212,0.7)]";
+      case "Paused":
+        return "bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.7)]";
+      case "Standby":
       default:
-        return "bg-zephyra-text-veryMuted";
+        return "bg-zephyra-text-veryMuted/50";
     }
   };
 
   return (
-    <header className="w-full h-[64px] border-b border-zephyra-border-hairline flex items-center justify-between px-6 bg-zephyra-bg/70 backdrop-blur-xl z-30 sticky top-0">
+    <header className="h-[64px] w-full border-b border-zephyra-border-hairline/20 bg-[#08090D]/90 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between z-30 shrink-0">
       {/* Brand Group & Toggle History */}
       <div className="flex items-center gap-3.5">
         {/* Toggle history sidebar panel */}
@@ -44,14 +49,14 @@ export const NavBar: React.FC<NavBarProps> = ({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onToggleHistory}
-          aria-label="Toggle thread history"
+          aria-label="Toggle history panel"
           className={`p-1.5 rounded border transition-colors duration-200 cursor-pointer focus:outline-none ${
             isHistoryOpen
               ? "border-zephyra-accent/30 text-zephyra-accent bg-zephyra-accent/5"
               : "border-zephyra-border-surface/40 bg-zephyra-border-hairline/25 text-zephyra-text-muted hover:text-zephyra-text-primary"
           }`}
         >
-          <Menu className="w-3.5 h-3.5" />
+          <PanelLeft className="w-3.5 h-3.5" />
         </motion.button>
 
         {/* Geometric brand symbol */}
@@ -85,7 +90,11 @@ export const NavBar: React.FC<NavBarProps> = ({
         {/* Core System Telemetry Text (Subtle, Monospace) */}
         <div className="hidden lg:flex flex-col items-end gap-0.5 select-none font-mono text-[8px] tracking-[0.12em] text-zephyra-text-veryMuted uppercase">
           <span>core engine</span>
-          <span className="text-zephyra-text-muted lowercase tracking-normal font-sans font-light">nvidia / llama-3.1</span>
+          <span className="text-zephyra-text-muted lowercase tracking-normal font-sans font-light">
+            {systemConfig?.model
+              ? `${systemConfig.provider.toLowerCase()} / ${systemConfig.model}`
+              : "nvidia / llama-3.1"}
+          </span>
         </div>
 
         <span className="hidden lg:inline text-zephyra-border-surface/50 select-none">|</span>
@@ -107,6 +116,9 @@ export const NavBar: React.FC<NavBarProps> = ({
             )}
             {status === "Speaking" && (
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-70"></span>
+            )}
+            {status === "Paused" && (
+              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-70"></span>
             )}
             <span className={`relative inline-flex rounded-full h-1.5 w-1.5 transition-all duration-300 ${getStatusColor()}`} />
           </span>

@@ -1,14 +1,25 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
+import { RotateCcw, AlertTriangle } from "lucide-react";
 import type { Message as MessageType } from "../api/types";
 
 interface MessageProps {
   message: MessageType;
+  onRetry?: (userMessageId: number) => void;
+  isStreaming?: boolean;
 }
 
-export const Message: React.FC<MessageProps> = ({ message }) => {
+export const Message: React.FC<MessageProps> = ({ message, onRetry, isStreaming = false }) => {
   const isUser = message.role === "user";
+
+  const handleAction = () => {
+    if (isStreaming || !onRetry) return;
+    const targetId = isUser ? message.id : message.userMessageId;
+    if (targetId !== undefined) {
+      onRetry(targetId);
+    }
+  };
 
   return (
     <motion.div
@@ -19,7 +30,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
         isUser ? "items-end" : "items-start"
       }`}
     >
-      <div className={`${isUser ? "w-full" : "w-full"}`}>
+      <div className="w-full">
         {/* Technical mono label */}
         <div className={`flex items-center gap-2 font-mono text-[8px] md:text-[9px] tracking-widest uppercase text-zephyra-text-veryMuted mb-2 select-none ${
           isUser ? "justify-end pr-4" : "justify-start pl-4"
@@ -32,10 +43,44 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
 
         {/* Message Accent Rails (No Bubbles) */}
         {isUser ? (
-          <div className="border-r-2 border-zephyra-border-surface/40 pr-4 py-0.5 text-right w-full flex justify-end">
+          <div className="border-r-2 border-zephyra-border-surface/40 pr-4 py-0.5 text-right w-full flex flex-col items-end">
             <div className="font-sans leading-relaxed text-sm tracking-wide text-zephyra-text-secondary font-light whitespace-pre-wrap break-words max-w-[620px]">
               {message.content}
             </div>
+
+            {/* User message failure state action */}
+            {message.isError && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-mono text-[10px] text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {message.errorText || "Generation failed"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAction}
+                  disabled={isStreaming}
+                  className="px-2.5 py-1 rounded border border-red-800/50 bg-red-950/30 hover:bg-red-900/50 text-red-300 font-mono text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {/* User message aborted state (if no assistant partial text) */}
+            {message.isAborted && (
+              <div className="mt-2 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={handleAction}
+                  disabled={isStreaming}
+                  className="px-2.5 py-1 rounded border border-zephyra-accent/40 bg-zephyra-accent/10 hover:bg-zephyra-accent/20 text-zephyra-accent font-mono text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Regenerate</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="border-l-2 border-zephyra-accent/40 pl-4 py-0.5 text-left">
@@ -68,6 +113,41 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                 {message.content}
               </ReactMarkdown>
             </div>
+
+            {/* Assistant message aborted state action */}
+            {message.isAborted && (
+              <div className="mt-3 flex items-center gap-2 select-none">
+                <span className="font-mono text-[9px] text-zephyra-text-veryMuted uppercase tracking-wider">Generation Stopped</span>
+                <button
+                  type="button"
+                  onClick={handleAction}
+                  disabled={isStreaming}
+                  className="px-2.5 py-1 rounded border border-zephyra-accent/40 bg-zephyra-accent/10 hover:bg-zephyra-accent/20 text-zephyra-accent font-mono text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Regenerate</span>
+                </button>
+              </div>
+            )}
+
+            {/* Assistant message error state action */}
+            {message.isError && (
+              <div className="mt-3 flex items-center gap-2 select-none">
+                <span className="font-mono text-[9px] text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {message.errorText || "Error occurred"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAction}
+                  disabled={isStreaming}
+                  className="px-2.5 py-1 rounded border border-red-800/50 bg-red-950/30 hover:bg-red-900/50 text-red-300 font-mono text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

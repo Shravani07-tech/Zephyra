@@ -2,6 +2,41 @@ import type { Conversation, Message } from "./types";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
+function formatErrorDetail(detail: unknown): string {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item && typeof (item as Record<string, unknown>).msg === "string") {
+          return (item as Record<string, unknown>).msg as string;
+        }
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (typeof detail === "object") {
+    if ("msg" in detail && typeof (detail as Record<string, unknown>).msg === "string") {
+      return (detail as Record<string, unknown>).msg as string;
+    }
+    if ("message" in detail && typeof (detail as Record<string, unknown>).message === "string") {
+      return (detail as Record<string, unknown>).message as string;
+    }
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return "";
+    }
+  }
+  return String(detail);
+}
+
 export const mockApiClient = {
   async getConversations(): Promise<Conversation[]> {
     const response = await fetch(`${BASE_URL}/api/conversations`);
@@ -30,22 +65,34 @@ export const mockApiClient = {
 
   async sendMessageStream(
     conversationId: string | null,
-    text: string,
+    text: string | null,
     onChunk: (chunk: string) => void,
     onConversation: (id: string) => void,
     onError: (err: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    retryMessageId?: number
   ): Promise<void> {
     try {
+      const validConvId =
+        conversationId && conversationId !== "temp" && conversationId.trim().length > 0
+          ? conversationId
+          : null;
+
+      const payload: Record<string, unknown> = {
+        conversation_id: validConvId,
+      };
+      if (retryMessageId !== undefined && retryMessageId !== null) {
+        payload.retry_message_id = retryMessageId;
+      } else {
+        payload.message = text;
+      }
+
       const response = await fetch(`${BASE_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          conversation_id: conversationId,
-          message: text,
-        }),
+        body: JSON.stringify(payload),
         signal,
       });
 
@@ -54,7 +101,10 @@ export const mockApiClient = {
         try {
           const errJson = await response.json();
           if (errJson && errJson.detail) {
-            errDetail = errJson.detail;
+            const formatted = formatErrorDetail(errJson.detail);
+            if (formatted) {
+              errDetail = formatted;
+            }
           }
         } catch {
           // ignore
@@ -104,7 +154,7 @@ export const mockApiClient = {
                 onChunk(data.text);
               }
             } else if (data.event === "error") {
-              const errMsg = data.detail || "Provider/API error occurred.";
+              const errMsg = formatErrorDetail(data.detail) || "Provider/API error occurred.";
               onError(errMsg);
               throw new Error(errMsg);
             } else if (data.event === "done") {
@@ -119,9 +169,19 @@ export const mockApiClient = {
       if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
         throw err;
       }
-      const errMsg = err.message || "Failed to process message stream.";
+      let errMsg = "Failed to process message stream.";
+      if (typeof err === "string") {
+        errMsg = err;
+      } else if (err && typeof err === "object" && typeof err.message === "string" && err.message) {
+        errMsg = err.message;
+      } else if (err) {
+        errMsg = formatErrorDetail(err) || errMsg;
+      }
+      if (errMsg.includes("[object Object]")) {
+        errMsg = "Failed to process message stream.";
+      }
       onError(errMsg);
-      throw err;
+      throw new Error(errMsg);
     }
   }
 };

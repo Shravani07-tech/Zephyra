@@ -37,8 +37,15 @@ async def chat(
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """Stream conversation reply using Server-Sent Events (SSE)."""
-    # Resolve or create conversation
-    if request.conversation_id is not None:
+    skip_user_append = False
+    user_text: str | None = request.message
+
+    if request.retry_message_id is not None:
+        if request.conversation_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="conversation_id is required when retry_message_id is supplied",
+            )
         conv_id = str(request.conversation_id)
         conv = conv_service.get_conversation(db, conv_id)
         if not conv:
@@ -46,9 +53,41 @@ async def chat(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
+        target_msg = conv_service.get_message(db, request.retry_message_id)
+        if not target_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Target message for retry not found",
+            )
+        if target_msg.role != "user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot retry non-user message",
+            )
+        if str(target_msg.conversation_id) != conv_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Message does not belong to the specified conversation",
+            )
+        skip_user_append = True
+        user_text = target_msg.content
     else:
-        new_conv = conv_service.create_conversation(db)
-        conv_id = new_conv.id
+        if not request.message or not request.message.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Message is required for a new turn",
+            )
+        if request.conversation_id is not None:
+            conv_id = str(request.conversation_id)
+            conv = conv_service.get_conversation(db, conv_id)
+            if not conv:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Conversation not found",
+                )
+        else:
+            new_conv = conv_service.create_conversation(db)
+            conv_id = new_conv.id
 
     async def event_generator() -> AsyncIterator[bytes]:
         try:
@@ -56,8 +95,14 @@ async def chat(
             yield _format_sse("conversation", conversation_id=conv_id)
 
             # Stream turns from the orchestrator
-            async for chunk in run_turn(db, conv_id, request.message):
+            async for chunk in run_turn(
+                db,
+                conv_id,
+                user_text,
+                skip_user_append=skip_user_append,
+            ):
                 yield _format_sse("chunk", text=chunk)
+
 
             yield _format_sse("done")
 

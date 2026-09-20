@@ -20,12 +20,18 @@ export const ChatView: React.FC = () => {
     status,
     setStatus,
     sendMessage,
+    retryMessage,
     stopGeneration,
     createNewConversation,
     selectConversation,
     deleteConversation,
+    voiceState,
+    pauseVoice,
+    resumeVoice,
+    stopVoice,
     stopSpeech,
   } = useChatStream();
+
 
   const { isListening, volume, toggleListening } = useVoiceInput(
     (transcript) => {
@@ -206,6 +212,7 @@ export const ChatView: React.FC = () => {
               messages={messages}
               streamingText={streamingText}
               isStreaming={isStreaming}
+              onRetry={retryMessage}
             />
           ) : (
             <EmptyState
@@ -220,6 +227,10 @@ export const ChatView: React.FC = () => {
             onSend={sendMessage}
             onStop={stopGeneration}
             onMicClick={handleVoiceToggle}
+            voiceState={voiceState}
+            onPauseVoice={pauseVoice}
+            onResumeVoice={resumeVoice}
+            onStopVoice={stopVoice}
             isListening={isListening}
             isSending={isStreaming}
             volume={volume}

@@ -7,7 +7,9 @@ file. ``.env`` is never committed; ``.env.example`` documents its shape.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = BACKEND_ROOT / "data" / "zephyra.db"
@@ -22,9 +24,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Server-side only. Must never be exposed to the frontend bundle.
-    nvidia_api_key: str | None = None
-    zephyra_model: str = "meta/llama-3.1-8b-instruct"
+    nvidia_api_key: str | None = Field(None, validation_alias="NVIDIA_API_KEY")
+    zephyra_model: str = "meta/llama-3.2-11b-vision-instruct"
     nvidia_api_base: str = "https://integrate.api.nvidia.com/v1"
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
