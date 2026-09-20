@@ -20,6 +20,7 @@ export const ChatView: React.FC = () => {
     status,
     setStatus,
     sendMessage,
+    stopGeneration,
     createNewConversation,
     selectConversation,
     deleteConversation,
@@ -217,6 +218,7 @@ export const ChatView: React.FC = () => {
 
           <Composer
             onSend={sendMessage}
+            onStop={stopGeneration}
             onMicClick={handleVoiceToggle}
             isListening={isListening}
             isSending={isStreaming}

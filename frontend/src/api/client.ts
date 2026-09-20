@@ -33,7 +33,8 @@ export const mockApiClient = {
     text: string,
     onChunk: (chunk: string) => void,
     onConversation: (id: string) => void,
-    onError: (err: string) => void
+    onError: (err: string) => void,
+    signal?: AbortSignal
   ): Promise<void> {
     try {
       const response = await fetch(`${BASE_URL}/api/chat`, {
@@ -45,6 +46,7 @@ export const mockApiClient = {
           conversation_id: conversationId,
           message: text,
         }),
+        signal,
       });
 
       if (!response.ok) {
@@ -114,6 +116,9 @@ export const mockApiClient = {
         reader.releaseLock();
       }
     } catch (err: any) {
+      if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
+        throw err;
+      }
       const errMsg = err.message || "Failed to process message stream.";
       onError(errMsg);
       throw err;

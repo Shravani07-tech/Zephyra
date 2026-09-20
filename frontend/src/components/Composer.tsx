@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Square } from "lucide-react";
 import { motion } from "framer-motion";
 import { MicButton } from "./MicButton";
 
 interface ComposerProps {
   onSend: (text: string) => void;
   onMicClick: () => void;
+  onStop?: () => void;
   isListening: boolean;
   isSending: boolean;
   volume?: number;
@@ -15,6 +16,7 @@ interface ComposerProps {
 export const Composer: React.FC<ComposerProps> = ({
   onSend,
   onMicClick,
+  onStop,
   isListening,
   isSending,
   volume = 0,
@@ -131,7 +133,7 @@ export const Composer: React.FC<ComposerProps> = ({
             </div>
           </div>
 
-          {/* Right: Keyboard Shortcuts & Submit Button */}
+          {/* Right: Keyboard Shortcuts & Submit / Stop Button */}
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 font-mono text-[8px] md:text-[9px] text-zephyra-text-veryMuted uppercase tracking-widest">
               <kbd className="px-1.5 py-0.5 rounded border border-zephyra-border-surface bg-zephyra-border-hairline/60 text-[8px] text-zephyra-text-muted">Enter ↵</kbd>
@@ -142,21 +144,35 @@ export const Composer: React.FC<ComposerProps> = ({
               {text.length} / 2000
             </span>
 
-            <motion.button
-              type="submit"
-              disabled={!text.trim() || isSending || isListening}
-              whileHover={text.trim() && !isSending && !isListening ? { scale: 1.05 } : {}}
-              whileTap={text.trim() && !isSending && !isListening ? { scale: 0.95 } : {}}
-              transition={{ type: "spring", stiffness: 450, damping: 15 }}
-              aria-label="Send command"
-              className={`h-8 w-8 rounded-full border transition-colors duration-300 flex items-center justify-center focus:outline-none ${
-                text.trim() && !isSending && !isListening
-                  ? "bg-zephyra-accent/10 border-zephyra-accent/30 text-zephyra-accent hover:bg-zephyra-accent hover:text-[#08090D] cursor-pointer shadow-[0_0_12px_rgba(0,229,255,0.25)]"
-                  : "bg-transparent border-transparent text-zephyra-text-veryMuted opacity-15 cursor-not-allowed"
-              }`}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </motion.button>
+            {isSending ? (
+              <motion.button
+                type="button"
+                onClick={onStop}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 450, damping: 15 }}
+                aria-label="Stop generation"
+                className="h-8 w-8 rounded-full border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors duration-300 flex items-center justify-center focus:outline-none cursor-pointer shadow-[0_0_12px_rgba(239,68,68,0.25)]"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </motion.button>
+            ) : (
+              <motion.button
+                type="submit"
+                disabled={!text.trim() || isListening}
+                whileHover={text.trim() && !isListening ? { scale: 1.05 } : {}}
+                whileTap={text.trim() && !isListening ? { scale: 0.95 } : {}}
+                transition={{ type: "spring", stiffness: 450, damping: 15 }}
+                aria-label="Send command"
+                className={`h-8 w-8 rounded-full border transition-colors duration-300 flex items-center justify-center focus:outline-none ${
+                  text.trim() && !isListening
+                    ? "bg-zephyra-accent/10 border-zephyra-accent/30 text-zephyra-accent hover:bg-zephyra-accent hover:text-[#08090D] cursor-pointer shadow-[0_0_12px_rgba(0,229,255,0.25)]"
+                    : "bg-transparent border-transparent text-zephyra-text-veryMuted opacity-15 cursor-not-allowed"
+                }`}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </motion.button>
+            )}
           </div>
         </div>
       </motion.div>

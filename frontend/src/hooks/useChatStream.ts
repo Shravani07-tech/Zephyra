@@ -17,6 +17,8 @@ export function useChatStream() {
 
   const activeRequestIdRef = useRef<number | null>(null);
   const shouldPreventLoadRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamingTextRef = useRef<string>("");
 
   const { speak, stop: stopSpeech } = useSpeech({
     onEnd: () => {
@@ -66,9 +68,14 @@ export function useChatStream() {
   const selectConversation = async (id: string | null) => {
     setActiveConversationId(id);
     setStreamingText("");
+    streamingTextRef.current = "";
     setIsStreaming(false);
     setStatus("Standby");
     stopSpeech();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
 
   const deleteConversation = async (id: string) => {
@@ -83,6 +90,13 @@ export function useChatStream() {
     selectConversation(null);
   };
 
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
   const sendMessage = async (text: string, isVoice: boolean = false) => {
     if (!text.trim() || isStreaming) {
       if (!text.trim()) {
@@ -93,6 +107,7 @@ export function useChatStream() {
 
     const currentRequestId = Date.now();
     activeRequestIdRef.current = currentRequestId;
+    streamingTextRef.current = "";
 
     // Interrupt/cancel previous speech when a new message starts
     stopSpeech();
@@ -113,6 +128,10 @@ export function useChatStream() {
 
     let resolvedId = activeConversationId;
     let hasReceivedChunk = false;
+    let aborted = false;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       await mockApiClient.sendMessageStream(
@@ -125,7 +144,9 @@ export function useChatStream() {
             hasReceivedChunk = true;
             setStatus("Processing");
           }
-          setStreamingText((prev) => prev + chunk);
+          const nextText = streamingTextRef.current + chunk;
+          streamingTextRef.current = nextText;
+          setStreamingText(nextText);
         },
         (newId) => {
           if (activeRequestIdRef.current !== currentRequestId) return;
@@ -138,7 +159,8 @@ export function useChatStream() {
         },
         (errorMsg) => {
           console.error("Stream error:", errorMsg);
-        }
+        },
+        controller.signal
       );
 
       if (activeRequestIdRef.current !== currentRequestId) return;
@@ -164,15 +186,33 @@ export function useChatStream() {
       } else {
         setStatus("Standby");
       }
-    } catch (err) {
-      console.error("Failed to execute message stream", err);
+    } catch (err: any) {
+      if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
+        aborted = true;
+      } else {
+        console.error("Failed to execute message stream", err);
+      }
       if (activeRequestIdRef.current === currentRequestId) {
         setStatus("Standby");
       }
     } finally {
       if (activeRequestIdRef.current === currentRequestId) {
         setIsStreaming(false);
+        if (aborted) {
+          // Keep the already-generated portion of the assistant response visible
+          if (streamingTextRef.current.trim().length > 0) {
+            const abortedAssistantMsg: Message = {
+              id: Date.now(),
+              conversation_id: resolvedId || activeConversationId || "temp",
+              role: "assistant",
+              content: streamingTextRef.current,
+              created_at: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, abortedAssistantMsg]);
+          }
+        }
         setStreamingText("");
+        abortControllerRef.current = null;
       }
     }
   };
@@ -187,6 +227,7 @@ export function useChatStream() {
     status,
     setStatus,
     sendMessage,
+    stopGeneration,
     selectConversation,
     deleteConversation,
     createNewConversation,
