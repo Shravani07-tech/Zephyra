@@ -15,9 +15,10 @@ def health() -> HealthResponse:
 @router.get("/system/status", response_model=SystemStatusResponse)
 def system_status() -> SystemStatusResponse:
     """Return safe metadata about the configured system model/provider."""
-    settings = get_settings()
+    from app.services.llm import get_llm_provider
+    provider = get_llm_provider()
     return SystemStatusResponse(
-        provider="NVIDIA",
-        model=settings.zephyra_model,
+        provider=provider.provider_name,
+        model=provider.model_name,
         status="standby",
     )

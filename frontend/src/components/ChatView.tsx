@@ -39,7 +39,7 @@ export const ChatView: React.FC = () => {
     },
     (errorMsg) => {
       console.error("Voice input error:", errorMsg);
-      setStatus("Standby");
+      setStatus("IDLE");
       alert(`Microphone Error: ${errorMsg}`);
     }
   );
@@ -47,7 +47,7 @@ export const ChatView: React.FC = () => {
   const handleVoiceToggle = useCallback(() => {
     if (!isListening) {
       stopSpeech();
-      setStatus("Listening");
+      setStatus("LISTENING");
     }
     toggleListening();
   }, [isListening, stopSpeech, setStatus, toggleListening]);
@@ -60,14 +60,14 @@ export const ChatView: React.FC = () => {
   const [systemConfig, setSystemConfig] = useState({
     provider: "NVIDIA",
     model: "meta/llama-3.1-8b-instruct",
-    status: "standby",
+    status: "IDLE",
   });
 
   useEffect(() => {
     let active = true;
     const fetchSystemStatus = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/system/status");
+        const response = await fetch("http://localhost:8000/api/system/status");
         if (response.ok && active) {
           const data = await response.json();
           setSystemConfig(data);
@@ -85,7 +85,7 @@ export const ChatView: React.FC = () => {
   // Sync vocal recording states to ambient global status safely
   useEffect(() => {
     if (!isListening) {
-      setStatus((prev) => (prev === "Listening" ? "Standby" : prev));
+      setStatus((prev) => (prev === "LISTENING" ? "IDLE" : prev));
     }
   }, [isListening, setStatus]);
 
@@ -128,6 +128,7 @@ export const ChatView: React.FC = () => {
       {/* Top Banner Control */}
       <NavBar
         status={status}
+        systemConfig={systemConfig}
         onNewChat={createNewConversation}
         isHistoryOpen={isHistoryOpen}
         isSystemOpen={isSystemOpen}

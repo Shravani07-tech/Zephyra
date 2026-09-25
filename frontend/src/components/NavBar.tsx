@@ -24,17 +24,22 @@ export const NavBar: React.FC<NavBarProps> = ({
 }) => {
   const getStatusColor = () => {
     switch (status) {
-      case "Listening":
+      case "LISTENING":
         return "bg-zephyra-accent shadow-[0_0_10px_rgba(0,229,255,0.7)]";
-      case "Thinking":
+      case "AWAKENING":
+      case "THINKING":
         return "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]";
-      case "Processing":
+      case "GENERATING":
         return "bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.6)]";
-      case "Speaking":
+      case "COMPLETING":
+      case "SPEAKING":
         return "bg-teal-300 shadow-[0_0_10px_rgba(94,234,212,0.7)]";
-      case "Paused":
+      case "ERROR":
+      case "ABORTED":
+        return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]";
+      case "PAUSED":
         return "bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.7)]";
-      case "Standby":
+      case "IDLE":
       default:
         return "bg-zephyra-text-veryMuted/50";
     }
@@ -48,6 +53,7 @@ export const NavBar: React.FC<NavBarProps> = ({
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
           onClick={onToggleHistory}
           aria-label="Toggle history panel"
           className={`p-1.5 rounded border transition-colors duration-200 cursor-pointer focus:outline-none ${
@@ -72,6 +78,7 @@ export const NavBar: React.FC<NavBarProps> = ({
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
+          transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
           onClick={onNewChat}
           className="flex items-center gap-2 text-left focus:outline-none cursor-pointer bg-transparent border-0 p-0 m-0"
           aria-label="Zephyra Brand Home"
@@ -105,20 +112,23 @@ export const NavBar: React.FC<NavBarProps> = ({
           aria-live="polite"
         >
           <span className="relative flex h-1.5 w-1.5">
-            {status === "Listening" && (
+            {status === "LISTENING" && (
               <span className="animate-status-pulse absolute inline-flex h-full w-full rounded-full bg-zephyra-accent opacity-75"></span>
             )}
-            {status === "Thinking" && (
+            {(status === "THINKING" || status === "AWAKENING") && (
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-60"></span>
             )}
-            {status === "Processing" && (
+            {status === "GENERATING" && (
               <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-indigo-500 opacity-70"></span>
             )}
-            {status === "Speaking" && (
+            {(status === "SPEAKING" || status === "COMPLETING") && (
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-70"></span>
             )}
-            {status === "Paused" && (
+            {status === "PAUSED" && (
               <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-70"></span>
+            )}
+            {(status === "ERROR" || status === "ABORTED") && (
+              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-70"></span>
             )}
             <span className={`relative inline-flex rounded-full h-1.5 w-1.5 transition-all duration-300 ${getStatusColor()}`} />
           </span>
@@ -130,7 +140,7 @@ export const NavBar: React.FC<NavBarProps> = ({
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.16, ease: "easeInOut" }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 className="font-mono text-[8px] md:text-[9px] tracking-widest text-zephyra-text-muted uppercase select-none block font-medium"
               >
                 {status}
@@ -143,6 +153,7 @@ export const NavBar: React.FC<NavBarProps> = ({
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
+          transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
           onClick={onNewChat}
           aria-label="Create new conversation"
           className="p-1.5 rounded border border-zephyra-border-surface bg-zephyra-border-hairline/30 text-zephyra-text-muted hover:text-zephyra-text-primary hover:border-zephyra-text-veryMuted transition-colors duration-200 focus:outline-none cursor-pointer flex items-center gap-1.5"
@@ -155,6 +166,7 @@ export const NavBar: React.FC<NavBarProps> = ({
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
           onClick={onToggleSystem}
           aria-label="Toggle system monitor"
           className={`p-1.5 rounded border transition-colors duration-200 cursor-pointer focus:outline-none ${

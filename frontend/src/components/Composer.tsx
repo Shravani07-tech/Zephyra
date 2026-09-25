@@ -29,7 +29,7 @@ export const Composer: React.FC<ComposerProps> = ({
   isListening,
   isSending,
   volume = 0,
-  status = "Standby",
+  status = "IDLE",
 }) => {
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -72,20 +72,24 @@ export const Composer: React.FC<ComposerProps> = ({
     borderColor = "rgba(0, 229, 255, 0.5)";
     shadowColor = "rgba(0, 229, 255, 0.12)";
     shadowBlur = "30px";
-  } else if (isSending || status === "Thinking" || status === "Processing") {
+  } else if (isSending || status === "THINKING" || status === "GENERATING" || status === "AWAKENING") {
     borderColor = "rgba(0, 140, 255, 0.45)";
     shadowColor = "rgba(0, 140, 255, 0.08)";
     shadowBlur = "25px";
-  } else if (status === "Speaking") {
+  } else if (status === "SPEAKING" || status === "COMPLETING") {
     borderColor = "rgba(220, 250, 255, 0.35)";
     shadowColor = "rgba(220, 250, 255, 0.06)";
     shadowBlur = "25px";
     bg = "rgba(10, 13, 20, 0.88)";
-  } else if (status === "Paused") {
+  } else if (status === "PAUSED") {
     borderColor = "rgba(252, 211, 77, 0.35)";
     shadowColor = "rgba(252, 211, 77, 0.06)";
     shadowBlur = "25px";
     bg = "rgba(15, 13, 10, 0.88)";
+  } else if (status === "ERROR" || status === "ABORTED") {
+    borderColor = "rgba(239, 68, 68, 0.45)";
+    shadowColor = "rgba(239, 68, 68, 0.08)";
+    shadowBlur = "25px";
   }
 
   return (
@@ -99,7 +103,7 @@ export const Composer: React.FC<ComposerProps> = ({
           boxShadow: `0 0 ${shadowBlur} ${shadowColor}, 0 16px 48px -12px rgba(0,0,0,0.9)`,
           backgroundColor: bg,
         }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         className="relative flex flex-col gap-1.5 p-2 bg-[#08090D]/85 backdrop-blur-2xl border rounded-2xl"
       >
         {/* Fine top border highlight */}
@@ -145,6 +149,7 @@ export const Composer: React.FC<ComposerProps> = ({
                     type="button"
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
+                    transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
                     onClick={voiceState === "speaking" ? onPauseVoice : onResumeVoice}
                     aria-label={voiceState === "speaking" ? "Pause voice playback" : "Resume voice playback"}
                     className={`px-2.5 py-1 rounded border font-mono text-[9px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors duration-200 ${
@@ -170,6 +175,7 @@ export const Composer: React.FC<ComposerProps> = ({
                       type="button"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
                       onClick={onStopVoice}
                       aria-label="Stop voice playback"
                       className="p-1 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 hover:bg-red-950/40 hover:border-red-800/50 hover:text-red-300 text-zephyra-text-veryMuted transition-colors cursor-pointer"
@@ -203,7 +209,7 @@ export const Composer: React.FC<ComposerProps> = ({
                 onClick={onStop}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 450, damping: 15 }}
+                transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
                 aria-label="Stop generation"
                 className="h-8 w-8 rounded-full border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors duration-300 flex items-center justify-center focus:outline-none cursor-pointer shadow-[0_0_12px_rgba(239,68,68,0.25)]"
               >
@@ -215,7 +221,7 @@ export const Composer: React.FC<ComposerProps> = ({
                 disabled={!text.trim() || isListening}
                 whileHover={text.trim() && !isListening ? { scale: 1.05 } : {}}
                 whileTap={text.trim() && !isListening ? { scale: 0.95 } : {}}
-                transition={{ type: "spring", stiffness: 450, damping: 15 }}
+                transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
                 aria-label="Send command"
                 className={`h-8 w-8 rounded-full border transition-colors duration-300 flex items-center justify-center focus:outline-none ${
                   text.trim() && !isListening

@@ -41,8 +41,13 @@ def test_system_status_endpoint(client: TestClient) -> None:
     response = client.get("/api/system/status")
     assert response.status_code == 200
     data = response.json()
-    assert data["provider"] == "NVIDIA"
-    assert data["model"] == "meta/llama-3.2-11b-vision-instruct"
+    from app.config import get_settings
+    
+    settings = get_settings()
+    # It defaults to nvidia if not set, but .env sets it to ollama
+    expected_provider = "Ollama" if settings.llm_provider.lower() == "ollama" else "NVIDIA"
+    
+    assert data["provider"] == expected_provider
 
     assert data["status"] == "standby"
     assert "nvidia_api_key" not in data

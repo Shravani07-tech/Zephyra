@@ -45,6 +45,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
+    from app.api import files
+    app.include_router(files.router, prefix="/api")
     return app
 
 

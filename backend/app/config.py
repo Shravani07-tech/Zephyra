@@ -24,10 +24,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Active Provider ("nvidia" | "ollama")
+    llm_provider: str = Field("nvidia", validation_alias="LLM_PROVIDER")
+
+    # NVIDIA Provider Configuration
     nvidia_api_key: str | None = Field(None, validation_alias="NVIDIA_API_KEY")
-    zephyra_model: str = "meta/llama-3.2-11b-vision-instruct"
-    nvidia_api_base: str = "https://integrate.api.nvidia.com/v1"
+    nvidia_api_base: str = Field("https://integrate.api.nvidia.com/v1", validation_alias="NVIDIA_API_BASE")
+    nvidia_model: str = Field("meta/llama-3.2-11b-vision-instruct", validation_alias="NVIDIA_MODEL")
+
+    # Ollama Provider Configuration
+    ollama_api_base: str = Field("http://localhost:11434/v1", validation_alias="OLLAMA_API_BASE")
+    ollama_model: str = Field("llama3.2:latest", validation_alias="OLLAMA_MODEL")
+    ollama_embedding_model: str = Field("nomic-embed-text", validation_alias="OLLAMA_EMBEDDING_MODEL")
+
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
+    file_storage_path: Path = BACKEND_ROOT / "data" / "files"
+    chroma_db_path: Path = BACKEND_ROOT / "data" / "chroma"
 
     # Explicit allowlist — never "*". The Vite dev server runs on 5173 or 5174.
     cors_origins: tuple[str, ...] = (
@@ -36,6 +48,11 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
     )
+
+    @property
+    def zephyra_model(self) -> str:
+        """Dynamic model property for backward compatibility."""
+        return self.ollama_model if self.llm_provider.lower() == "ollama" else self.nvidia_model
 
 
 @lru_cache

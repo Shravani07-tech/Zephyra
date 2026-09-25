@@ -71,45 +71,80 @@ interface HazeCloud {
 
 // V3.3 Cinematic Visual State Configuration (Visibly Luminous Energy Contrast)
 const STATE_CONFIGS: Record<string, StateConfig> = {
-  Standby: {
+  IDLE: {
     speedMultiplier: 0.28,
     rotationMultiplier: 0.35,
     orbitIntensity: 0.014,
     currentOrbitOpacity: 0.50,
     targetColor: { r: 0, g: 140, b: 245 }, // deep navy
   },
-  Listening: {
+  AWAKENING: {
+    speedMultiplier: 0.35,
+    rotationMultiplier: 0.40,
+    orbitIntensity: 0.016,
+    currentOrbitOpacity: 0.55,
+    targetColor: { r: 0, g: 180, b: 255 }, // rising cyan
+  },
+  LISTENING: {
     speedMultiplier: 0.35,
     rotationMultiplier: 0.45,
     orbitIntensity: 0.016,
     currentOrbitOpacity: 0.60,
     targetColor: { r: 0, g: 200, b: 255 }, // electric cyan
   },
-  Thinking: {
+  THINKING: {
     speedMultiplier: 0.48,
     rotationMultiplier: 0.62,
     orbitIntensity: 0.020,
     currentOrbitOpacity: 0.70,
     targetColor: { r: 100, g: 225, b: 255 }, // white-cyan
   },
-  Processing: {
+  GENERATING: {
     speedMultiplier: 0.48, // identical to Thinking to prevent double-bump animation re-triggering
     rotationMultiplier: 0.62, // identical to Thinking to prevent double-bump animation re-triggering
     orbitIntensity: 0.020, // identical to Thinking to prevent double-bump animation re-triggering
     currentOrbitOpacity: 0.70, // identical to Thinking to prevent double-bump animation re-triggering
     targetColor: { r: 100, g: 225, b: 255 }, // intense electric white-cyan highlights
   },
-  Speaking: {
+  COMPLETING: {
+    speedMultiplier: 0.35,
+    rotationMultiplier: 0.50,
+    orbitIntensity: 0.018,
+    currentOrbitOpacity: 0.60,
+    targetColor: { r: 50, g: 200, b: 255 }, // fading to cyan
+  },
+  SPEAKING: {
     speedMultiplier: 0.32,
     rotationMultiplier: 0.40,
     orbitIntensity: 0.015,
     currentOrbitOpacity: 0.55,
     targetColor: { r: 0, g: 150, b: 245 }, // cyan-blue breathing
   },
+  PAUSED: {
+    speedMultiplier: 0.20,
+    rotationMultiplier: 0.25,
+    orbitIntensity: 0.010,
+    currentOrbitOpacity: 0.40,
+    targetColor: { r: 0, g: 100, b: 200 }, // darker paused state
+  },
+  ERROR: {
+    speedMultiplier: 0.15,
+    rotationMultiplier: 0.20,
+    orbitIntensity: 0.010,
+    currentOrbitOpacity: 0.40,
+    targetColor: { r: 255, g: 50, b: 50 }, // red tint for error
+  },
+  ABORTED: {
+    speedMultiplier: 0.20,
+    rotationMultiplier: 0.25,
+    orbitIntensity: 0.012,
+    currentOrbitOpacity: 0.45,
+    targetColor: { r: 200, g: 100, b: 50 }, // amber/orange tint for aborted
+  },
 };
 
 export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
-  status = "Standby",
+  status = "IDLE",
   isHistoryOpen = false,
   isSystemOpen = false,
   volume = 0,
@@ -338,10 +373,10 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
     let primaryB = 255;
 
     let time = 0;
-    const pulses: PulseWave[] = [];
+    let pulses: PulseWave[] = [];
     let pulseTimer = 0;
     let currentVolume = 0;
-    let previousStatus = "Standby";
+    let previousStatus = "IDLE";
 
     const project3D = (
       x: number,
@@ -386,7 +421,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
       const activeStatus = statusRef.current;
 
       // Handle Interruption signature
-      if (previousStatus === "Speaking" && activeStatus === "Listening") {
+      if (previousStatus === "SPEAKING" && activeStatus === "LISTENING") {
         pulses.length = 0;
         outwardSparks.length = 0;
         currentVolume = 0;
@@ -395,7 +430,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
       previousStatus = activeStatus;
 
       let targetVolume = volumeRef.current;
-      if (activeStatus === "Speaking") {
+      if (activeStatus === "SPEAKING") {
         targetVolume = 0.16 + 0.12 * Math.sin(time * 0.22) * Math.cos(time * 0.08);
       }
       currentVolume += (targetVolume - currentVolume) * 0.15;
@@ -422,7 +457,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
       currentCenterY += (targetCenterY - currentCenterY) * 0.08;
 
       // Configurations
-      const cfg = STATE_CONFIGS[activeStatus] || STATE_CONFIGS.Standby;
+      const cfg = STATE_CONFIGS[activeStatus] || STATE_CONFIGS.IDLE;
 
       let speedMultiplier = cfg.speedMultiplier;
       let rotationMultiplier = cfg.rotationMultiplier;
@@ -432,12 +467,12 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
       let targetG = cfg.targetColor.g;
       let targetB = cfg.targetColor.b;
 
-      if (activeStatus === "Listening") {
+      if (activeStatus === "LISTENING") {
         speedMultiplier = 0.35 + currentVolume * 0.5;
         rotationMultiplier = 0.45 + currentVolume * 0.5;
         orbitIntensity = 0.016 + currentVolume * 0.01;
         currentOrbitOpacity = 0.60 + currentVolume * 0.15;
-      } else if (activeStatus === "Processing") {
+      } else if (activeStatus === "GENERATING") {
         // Slow, cinematic color shifting (approx. 26s period)
         const cycleTime = time * 0.004;
         targetR = Math.floor(100 + 40 * Math.sin(cycleTime));
@@ -592,7 +627,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
         // Energy Filaments (wavy lines)
         let prevFil = getPoint(0, true);
         // Calmer, slower filament glow breathing instead of aggressive flicker
-        const processingGlow = activeStatus === "Processing" ? (0.80 + 0.20 * Math.sin(time * 0.02 + oIdx)) : 1.0;
+        const processingGlow = activeStatus === "GENERATING" ? (0.80 + 0.20 * Math.sin(time * 0.02 + oIdx)) : 1.0;
 
         for (let s = 1; s <= steps; s++) {
           const theta = (s / steps) * Math.PI * 2;
@@ -708,11 +743,11 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
 
       // Spark Emitter: Shoot random fading sparks outward from the core (restrained rate)
       let sparkChance = 0.01; // extremely low for standby/idle
-      if (activeStatus === "Listening") {
+      if (activeStatus === "LISTENING") {
         sparkChance = 0.06 + currentVolume * 0.30;
-      } else if (activeStatus === "Thinking" || activeStatus === "Processing") {
+      } else if (activeStatus === "THINKING" || activeStatus === "GENERATING") {
         sparkChance = 0.04; // elegant, sparse active sparks
-      } else if (activeStatus === "Speaking") {
+      } else if (activeStatus === "SPEAKING") {
         sparkChance = 0.03;
       }
 
@@ -774,7 +809,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
         let prevScreenY = 0;
 
         if (p.type === "bg" || p.type === "mid" || p.type === "fg") {
-          const trailVal = activeStatus === "Processing" ? p.trailLength * 2.2 : p.trailLength;
+          const trailVal = activeStatus === "GENERATING" ? p.trailLength * 2.2 : p.trailLength;
 
           if (trailVal > 0 && !prefersReducedMotion) {
             const prevScale = fov / (p.z + p.speedZ * speedMultiplier * trailVal);
@@ -801,7 +836,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
 
           if (px < 0 || px > width || py < 0 || py > height) return;
 
-          const starActivityGlow = activeStatus === "Processing" ? 1.35 : 1.0;
+          const starActivityGlow = activeStatus === "GENERATING" ? 1.35 : 1.0;
           const twinkle = 0.55 + 0.45 * Math.sin(time * 0.015 + p.colorPhase);
           const finalOpacity = p.opacity * twinkle * (0.8 + currentVolume * 0.2) * starActivityGlow;
           const size = p.size * scale2;
@@ -864,7 +899,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
           const ry = baseSize * orbit.ryFactor;
           
           if (!prefersReducedMotion) {
-            const generateSpeedOffset = activeStatus === "Processing" ? 1.45 : 1.0;
+            const generateSpeedOffset = activeStatus === "GENERATING" ? 1.45 : 1.0;
             p.theta! += p.speed * currentParticleSpeed * 1.1 * generateSpeedOffset;
           }
 
@@ -974,7 +1009,7 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
       });
 
       // G. Outward pulses when in Speaking state
-      if (activeStatus === "Speaking") {
+      if (activeStatus === "SPEAKING") {
         pulseTimer++;
         if (pulseTimer >= 50) {
           pulseTimer = 0;

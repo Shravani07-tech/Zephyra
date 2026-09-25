@@ -4,7 +4,7 @@ import { mockApiClient } from "../api/client";
 import type { Conversation, Message } from "../api/types";
 import { useSpeech } from "./useSpeech";
 
-export type SemanticStatus = "Standby" | "Listening" | "Thinking" | "Processing" | "Speaking" | "Paused";
+export type SemanticStatus = "IDLE" | "AWAKENING" | "THINKING" | "GENERATING" | "COMPLETING" | "ERROR" | "ABORTED" | "LISTENING" | "SPEAKING" | "PAUSED";
 
 export function useChatStream() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -13,7 +13,7 @@ export function useChatStream() {
   const [loading, setLoading] = useState<boolean>(true);
   const [streamingText, setStreamingText] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const [status, setStatus] = useState<SemanticStatus>("Standby");
+  const [status, setStatus] = useState<SemanticStatus>("IDLE");
 
   const activeRequestIdRef = useRef<number | null>(null);
   const shouldPreventLoadRef = useRef<boolean>(false);
@@ -28,23 +28,23 @@ export function useChatStream() {
     stop: stopSpeech,
   } = useSpeech({
     onEnd: () => {
-      setStatus((prev) => (prev === "Speaking" || prev === "Paused" ? "Standby" : prev));
+      setStatus((prev) => (prev === "SPEAKING" || prev === "PAUSED" ? "IDLE" : prev));
     },
   });
 
   const pauseVoice = () => {
     pauseSpeech();
-    setStatus((prev) => (prev === "Speaking" ? "Paused" : prev));
+    setStatus((prev) => (prev === "SPEAKING" ? "PAUSED" : prev));
   };
 
   const resumeVoice = () => {
     resumeSpeech();
-    setStatus((prev) => (prev === "Paused" ? "Speaking" : prev));
+    setStatus((prev) => (prev === "PAUSED" ? "SPEAKING" : prev));
   };
 
   const stopVoice = () => {
     stopSpeech();
-    setStatus((prev) => (prev === "Speaking" || prev === "Paused" ? "Standby" : prev));
+    setStatus((prev) => (prev === "SPEAKING" || prev === "PAUSED" ? "IDLE" : prev));
   };
 
   const loadConversations = async () => {
@@ -91,7 +91,7 @@ export function useChatStream() {
     setStreamingText("");
     streamingTextRef.current = "";
     setIsStreaming(false);
-    setStatus("Standby");
+    setStatus("IDLE");
     stopSpeech();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -121,7 +121,7 @@ export function useChatStream() {
   const sendMessage = async (text: string, isVoice: boolean = false) => {
     if (!text.trim() || isStreaming) {
       if (!text.trim()) {
-        setStatus("Standby");
+        setStatus("IDLE");
       }
       return;
     }
@@ -133,7 +133,10 @@ export function useChatStream() {
     // Interrupt/cancel previous speech when a new message starts
     stopSpeech();
 
-    setStatus("Thinking");
+    setStatus("AWAKENING");
+    setTimeout(() => {
+      if (activeRequestIdRef.current === currentRequestId) setStatus("THINKING");
+    }, 400);
     setIsStreaming(true);
     setStreamingText("");
 
@@ -163,7 +166,7 @@ export function useChatStream() {
 
           if (!hasReceivedChunk) {
             hasReceivedChunk = true;
-            setStatus("Processing");
+            setStatus("GENERATING");
           }
           const nextText = streamingTextRef.current + chunk;
           streamingTextRef.current = nextText;
@@ -199,13 +202,16 @@ export function useChatStream() {
           (finalMessages.length > 0 ? finalMessages[finalMessages.length - 1] : null);
         const speakText = assistantMessage?.content || "";
         if (speakText) {
-          setStatus("Speaking");
+          setStatus("SPEAKING");
           speak(speakText);
         } else {
-          setStatus("Standby");
+          setStatus("IDLE");
         }
       } else {
-        setStatus("Standby");
+        setStatus("COMPLETING");
+        setTimeout(() => {
+          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+        }, 800);
       }
     } catch (err: any) {
       if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
@@ -241,12 +247,19 @@ export function useChatStream() {
         }
       }
       if (activeRequestIdRef.current === currentRequestId) {
-        setStatus("Standby");
+        setStatus("ERROR");
+        setTimeout(() => {
+          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+        }, 2000);
       }
     } finally {
       if (activeRequestIdRef.current === currentRequestId) {
         setIsStreaming(false);
         if (aborted) {
+          setStatus("ABORTED");
+          setTimeout(() => {
+            if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+          }, 2000);
           // Keep the already-generated portion of the assistant response visible
           if (streamingTextRef.current.trim().length > 0) {
             const abortedAssistantMsg: Message = {
@@ -286,7 +299,10 @@ export function useChatStream() {
 
     stopSpeech();
 
-    setStatus("Thinking");
+    setStatus("AWAKENING");
+    setTimeout(() => {
+      if (activeRequestIdRef.current === currentRequestId) setStatus("THINKING");
+    }, 400);
     setIsStreaming(true);
     setStreamingText("");
 
@@ -333,7 +349,7 @@ export function useChatStream() {
 
           if (!hasReceivedChunk) {
             hasReceivedChunk = true;
-            setStatus("Processing");
+            setStatus("GENERATING");
           }
           const nextText = streamingTextRef.current + chunk;
           streamingTextRef.current = nextText;
@@ -363,7 +379,10 @@ export function useChatStream() {
         finalMessages = await mockApiClient.getConversationMessages(resolvedId);
         setMessages(finalMessages);
       }
-      setStatus("Standby");
+      setStatus("COMPLETING");
+      setTimeout(() => {
+        if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+      }, 800);
     } catch (err: any) {
       if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
         aborted = true;
@@ -377,12 +396,19 @@ export function useChatStream() {
         }
       }
       if (activeRequestIdRef.current === currentRequestId) {
-        setStatus("Standby");
+        setStatus("ERROR");
+        setTimeout(() => {
+          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+        }, 2000);
       }
     } finally {
       if (activeRequestIdRef.current === currentRequestId) {
         setIsStreaming(false);
         if (aborted) {
+          setStatus("ABORTED");
+          setTimeout(() => {
+            if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+          }, 2000);
           if (streamingTextRef.current.trim().length > 0) {
             const abortedAssistantMsg: Message = {
               id: Date.now(),

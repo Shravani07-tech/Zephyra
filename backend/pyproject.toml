@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "zephyra-lite-backend"
 version = "0.2.0"
 description = "Zephyra Lite backend — FastAPI service for the Zephyra assistant."
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -15,6 +15,13 @@ dependencies = [
     "sqlalchemy>=2.0",
     "python-dotenv>=1.0",
     "openai>=1.50",
+    "langgraph>=0.2.14",
+    "langchain-core>=0.3.0",
+    "chromadb>=0.5.0",
+    "pypdf>=5.0.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

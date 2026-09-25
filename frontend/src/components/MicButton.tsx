@@ -22,6 +22,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
       disabled={disabled}
       whileHover={disabled ? {} : { scale: 1.05 }}
       whileTap={disabled ? {} : { scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
       aria-label={isListening ? "Stop voice input" : "Start voice input"}
       className={`relative h-10 w-10 rounded-full border transition-colors duration-300 flex items-center justify-center focus:outline-none ${
         isListening
@@ -36,7 +37,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
             scale: 1.15 + volume * 0.45,
             opacity: Math.max(0.2, 0.65 - volume * 0.3)
           }}
-          transition={{ type: "spring", stiffness: 350, damping: 15 }}
+          transition={{ type: "spring", stiffness: 200, damping: 25, mass: 1.2 }}
           className="absolute inset-0 rounded-full bg-zephyra-accent/15"
         />
       )}

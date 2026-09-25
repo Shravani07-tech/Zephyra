@@ -84,6 +84,15 @@ def test_health_endpoint(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_system_status_endpoint(client: TestClient) -> None:
+    """Verify system status reports configured provider and model."""
+    response = client.get("/api/system/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "provider" in data
+    assert "model" in data
+    assert data["status"] == "standby"
+
 def test_create_and_delete_conversation(db_session: Session) -> None:
     """Verify conversation service creation, retrieval, and delete lifecycle."""
     # Create conversation
@@ -146,13 +155,13 @@ def test_max_character_message_rejection(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-@patch("app.agent.runner.LLMService")
+@patch("app.agent.runner.get_llm_provider")
 def test_new_conversation_when_id_omitted(
-    mock_llm_service_class: MagicMock, client: TestClient
+    mock_get_llm_provider: MagicMock, client: TestClient
 ) -> None:
     """Verify omitting conversation_id creates a new conversation and streams it."""
     # Mock LLM stream response
-    mock_instance = mock_llm_service_class.return_value
+    mock_instance = mock_get_llm_provider.return_value
     mock_instance.stream_chat = mock_stream_success
 
     response = client.post("/api/chat", json={"message": "Initialize chat"})
@@ -173,12 +182,12 @@ def test_new_conversation_when_id_omitted(
     assert events[-1]["event"] == "done"
 
 
-@patch("app.agent.runner.LLMService")
+@patch("app.agent.runner.get_llm_provider")
 def test_stream_success_persists_assistant_message(
-    mock_llm_service_class: MagicMock, client: TestClient, db_session: Session
+    mock_get_llm_provider: MagicMock, client: TestClient, db_session: Session
 ) -> None:
     """Verify successful streaming persists the complete assistant response in DB."""
-    mock_instance = mock_llm_service_class.return_value
+    mock_instance = mock_get_llm_provider.return_value
     mock_instance.stream_chat = mock_stream_success
 
     conv = conv_service.create_conversation(db_session)
@@ -200,12 +209,12 @@ def test_stream_success_persists_assistant_message(
     assert messages[1].content == "Hello human!"
 
 
-@patch("app.agent.runner.LLMService")
+@patch("app.agent.runner.get_llm_provider")
 def test_stream_failure_does_not_persist_assistant_message(
-    mock_llm_service_class: MagicMock, client: TestClient, db_session: Session
+    mock_get_llm_provider: MagicMock, client: TestClient, db_session: Session
 ) -> None:
     """Verify failing provider calls do not persist assistant messages in DB."""
-    mock_instance = mock_llm_service_class.return_value
+    mock_instance = mock_get_llm_provider.return_value
     mock_instance.stream_chat = mock_stream_fail
 
     conv = conv_service.create_conversation(db_session)
@@ -316,9 +325,9 @@ def test_llm_service_error_mapping() -> None:
     asyncio.run(run_test())
 
 
-@patch("app.agent.runner.LLMService")
+@patch("app.agent.runner.get_llm_provider")
 def test_retry_and_regenerate_flow(
-    mock_llm_service_class: MagicMock, client: TestClient, db_session: Session
+    mock_get_llm_provider: MagicMock, client: TestClient, db_session: Session
 ) -> None:
     """Verify all retry/regenerate backend requirements:
 
@@ -331,7 +340,7 @@ def test_retry_and_regenerate_flow(
     7. Two normal identical prompts create two distinct user messages.
     8. Existing Stop Generation behavior remains correct.
     """
-    mock_instance = mock_llm_service_class.return_value
+    mock_instance = mock_get_llm_provider.return_value
     mock_instance.stream_chat = mock_stream_success
 
     # 1. New normal turn creates exactly one user message

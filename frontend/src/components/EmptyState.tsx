@@ -31,6 +31,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 250, damping: 25, mass: 1.2 }}
           onClick={onMicClick}
           aria-label={isListening ? "Deactivate voice connection" : "Activate voice connection"}
           className={`relative z-10 w-14 h-14 rounded-full border border-zephyra-accent/25 bg-black/45 hover:border-zephyra-accent/60 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-zephyra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#060c14] flex items-center justify-center cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.8)] ${
