@@ -7,7 +7,7 @@ table definitions live in ``models.py`` and arrive with Milestone 1.
 from collections.abc import Iterator
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -38,13 +38,32 @@ def get_db() -> Iterator[Session]:
         yield session
 
 
-def init_db() -> None:
-    """Create every table registered on :class:`Base`.
+# Columns added to existing tables after their first release. ``create_all``
+# never alters an existing table, so databases created earlier get these added
+# on startup. Each entry is (table, column, SQL type).
+_ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("messages", "metadata", "TEXT"),  # Phase 5 research citation metadata
+)
 
-    A no-op until Milestone 1 registers the conversation and message tables.
-    Not wired into app startup yet, so no database file is created on boot.
-    """
+
+def ensure_added_columns(bind: Engine) -> None:
+    """Idempotently add columns missing from tables that already exist."""
+    inspector = inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+    with bind.begin() as conn:
+        for table, column, sql_type in _ADDED_COLUMNS:
+            if table not in existing_tables:
+                continue
+            columns = {c["name"] for c in inspect(conn).get_columns(table)}
+            if column not in columns:
+                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {sql_type}'))
+
+
+def init_db(bind: Engine | None = None) -> None:
+    """Create every table registered on :class:`Base` and add late columns."""
+    target = bind or engine
     url = get_settings().database_url
-    if url.startswith(_SQLITE_PREFIX):
+    if bind is None and url.startswith(_SQLITE_PREFIX):
         Path(url[len(_SQLITE_PREFIX) :]).parent.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=target)
+    ensure_added_columns(target)

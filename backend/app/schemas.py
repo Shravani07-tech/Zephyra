@@ -1,10 +1,11 @@
 """Zephyra Lite — API request and response schemas."""
 
+import json
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -31,6 +32,24 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    # Server-built structured metadata (e.g. validated research citations).
+    # Read from the ORM ``metadata_`` column and exposed as ``metadata``.
+    message_metadata: dict[str, Any] | None = Field(
+        None,
+        validation_alias=AliasChoices("metadata_", "metadata"),
+        serialization_alias="metadata",
+    )
+
+    @field_validator("message_metadata", mode="before")
+    @classmethod
+    def _parse_metadata(cls, value: object) -> object:
+        if value is None or isinstance(value, dict):
+            return value
+        try:
+            parsed = json.loads(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
 
 
 class ConversationResponse(BaseModel):

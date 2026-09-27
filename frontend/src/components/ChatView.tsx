@@ -16,6 +16,7 @@ export const ChatView: React.FC = () => {
     conversations,
     activeConversationId,
     streamingText,
+    pendingResearch,
     isStreaming,
     status,
     setStatus,
@@ -212,6 +213,7 @@ export const ChatView: React.FC = () => {
             <MessageList
               messages={messages}
               streamingText={streamingText}
+              pendingResearch={pendingResearch}
               isStreaming={isStreaming}
               onRetry={retryMessage}
             />

@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     ollama_model: str = Field("llama3.2:latest", validation_alias="OLLAMA_MODEL")
     ollama_embedding_model: str = Field("nomic-embed-text", validation_alias="OLLAMA_EMBEDDING_MODEL")
 
+    # Research (Phase 5). No search provider is selected by default: research
+    # requests fail explicitly until an approved Search API provider is set.
+    search_provider: str = Field("none", validation_alias="SEARCH_PROVIDER")
+    search_timeout_seconds: float = Field(8.0, gt=0, validation_alias="SEARCH_TIMEOUT_SECONDS")
+    research_budget_seconds: float = Field(
+        15.0, gt=0, validation_alias="RESEARCH_BUDGET_SECONDS"
+    )
+    research_max_sources: int = Field(5, ge=1, le=10, validation_alias="RESEARCH_MAX_SOURCES")
+    research_snippet_max_chars: int = Field(
+        500, ge=50, le=2000, validation_alias="RESEARCH_SNIPPET_MAX_CHARS"
+    )
+
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
     file_storage_path: Path = BACKEND_ROOT / "data" / "files"
     chroma_db_path: Path = BACKEND_ROOT / "data" / "chroma"

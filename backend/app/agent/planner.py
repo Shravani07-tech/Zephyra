@@ -23,6 +23,14 @@ def build_planner(db: Session):
         from app.agent.nodes.file import handle_file
         return await handle_file(state, db)
         
+    async def research_node(state: PlannerState) -> dict:
+        from app.agent.nodes.research import handle_research
+        return await handle_research(state)
+
+    async def compound_node(state: PlannerState) -> dict:
+        from app.agent.nodes.research import handle_compound
+        return await handle_compound(state)
+
     async def memory_node(state: PlannerState) -> dict:
         from app.agent.nodes.memory import handle_memory
         return await handle_memory(state)
@@ -30,6 +38,8 @@ def build_planner(db: Session):
     workflow.add_node("task", task_node)
     workflow.add_node("file", file_node)
     workflow.add_node("memory", memory_node)
+    workflow.add_node("research", research_node)
+    workflow.add_node("compound", compound_node)
     
     # Edges
     workflow.add_edge(START, "router")
@@ -42,6 +52,10 @@ def build_planner(db: Session):
             return "file"
         elif intent == "MEMORY":
             return "memory"
+        elif intent == "RESEARCH":
+            return "research"
+        elif intent == "COMPOUND_RESEARCH_TASK":
+            return "compound"
         return END
 
     workflow.add_conditional_edges(
@@ -51,6 +65,8 @@ def build_planner(db: Session):
             "task": "task",
             "file": "file",
             "memory": "memory",
+            "research": "research",
+            "compound": "compound",
             END: END
         }
     )
@@ -58,5 +74,7 @@ def build_planner(db: Session):
     workflow.add_edge("task", END)
     workflow.add_edge("file", END)
     workflow.add_edge("memory", END)
+    workflow.add_edge("research", END)
+    workflow.add_edge("compound", END)
     
     return workflow.compile()

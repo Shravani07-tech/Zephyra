@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
 import { RotateCcw, AlertTriangle } from "lucide-react";
 import type { Message as MessageType } from "../api/types";
+import { renderableCitations } from "../api/citations";
 
 interface MessageProps {
   message: MessageType;
@@ -12,6 +13,10 @@ interface MessageProps {
 
 export const Message: React.FC<MessageProps> = ({ message, onRetry, isStreaming = false }) => {
   const isUser = message.role === "user";
+
+  // Citations come only from server-validated metadata, never from marker text.
+  const research = message.metadata?.research;
+  const citations = renderableCitations(message.metadata);
 
   const handleAction = () => {
     if (isStreaming || !onRetry) return;
@@ -113,6 +118,33 @@ export const Message: React.FC<MessageProps> = ({ message, onRetry, isStreaming 
                 {message.content}
               </ReactMarkdown>
             </div>
+
+            {/* Verified research citations */}
+            {research && citations.length === 0 && (
+              <div className="mt-4 pt-3 border-t border-zephyra-border-hairline/20 font-mono text-[9px] uppercase tracking-wider text-zephyra-text-veryMuted">
+                No verified sources were cited
+              </div>
+            )}
+            {citations.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-zephyra-border-hairline/20 font-sans text-xs text-zephyra-text-muted">
+                <div className="font-semibold mb-1 text-zephyra-accent text-[10px] tracking-widest uppercase">Sources</div>
+                <div className="flex flex-wrap gap-2">
+                  {citations.map((src) => (
+                    <a
+                      key={src.source_id}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 bg-[#1A2235]/40 hover:bg-[#1A2235]/80 border border-zephyra-border-surface/40 px-2 py-1 rounded transition-colors group max-w-[200px]"
+                      title={src.title}
+                    >
+                      <span className="font-mono text-[9px] text-zephyra-accent opacity-70 group-hover:opacity-100">[{src.source_id}]</span>
+                      <span className="truncate text-[10px] text-zephyra-text-primary group-hover:text-white">{src.title}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Assistant message aborted state action */}
             {message.isAborted && (

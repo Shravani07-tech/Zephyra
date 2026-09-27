@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from "react";
-import type { Message as MessageType } from "../api/types";
+import type { Message as MessageType, ResearchMetadata } from "../api/types";
 import { Message } from "./Message";
 
 interface MessageListProps {
   messages: MessageType[];
   streamingText?: string;
+  pendingResearch?: ResearchMetadata | null;
   isStreaming?: boolean;
   onRetry?: (userMessageId: number) => void;
 }
@@ -12,6 +13,7 @@ interface MessageListProps {
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   streamingText = "",
+  pendingResearch = null,
   isStreaming = false,
   onRetry,
 }) => {
@@ -43,6 +45,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             role: "assistant",
             content: streamingText,
             created_at: new Date().toISOString(),
+            metadata: pendingResearch ? { research: pendingResearch } : null,
           }}
           isStreaming={isStreaming}
         />

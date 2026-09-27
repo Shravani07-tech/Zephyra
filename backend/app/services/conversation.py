@@ -29,9 +29,9 @@ def list_conversations(db: Session) -> list[Conversation]:
     return db.query(Conversation).order_by(Conversation.created_at.desc()).all()
 
 
-def append_message(db: Session, conversation_id: str, role: str, content: str) -> Message:
+def append_message(db: Session, conversation_id: str, role: str, content: str, metadata: str | None = None) -> Message:
     """Append a new user or assistant message to the database."""
-    message = Message(conversation_id=conversation_id, role=role, content=content)
+    message = Message(conversation_id=conversation_id, role=role, content=content, metadata_=metadata)
     db.add(message)
     db.commit()
     db.refresh(message)

@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 
 import { mockApiClient } from "../api/client";
-import type { Conversation, Message } from "../api/types";
+import type { Conversation, Message, ResearchMetadata } from "../api/types";
+import { findPersistedUserMessage, reconcileUserMessageId } from "./reconcile";
+import { createRequestTracker } from "./requestTracker";
 import { useSpeech } from "./useSpeech";
 
 export type SemanticStatus = "IDLE" | "AWAKENING" | "THINKING" | "GENERATING" | "COMPLETING" | "ERROR" | "ABORTED" | "LISTENING" | "SPEAKING" | "PAUSED";
@@ -13,9 +15,11 @@ export function useChatStream() {
   const [loading, setLoading] = useState<boolean>(true);
   const [streamingText, setStreamingText] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [pendingResearch, setPendingResearch] = useState<ResearchMetadata | null>(null);
   const [status, setStatus] = useState<SemanticStatus>("IDLE");
 
-  const activeRequestIdRef = useRef<number | null>(null);
+  // Only the current request may update state; see requestTracker.ts.
+  const [requests] = useState(createRequestTracker);
   const shouldPreventLoadRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingTextRef = useRef<string>("");
@@ -87,8 +91,11 @@ export function useChatStream() {
   }, [activeConversationId]);
 
   const selectConversation = async (id: string | null) => {
+    // Invalidate first so a stream still winding down cannot touch the new view.
+    requests.invalidate();
     setActiveConversationId(id);
     setStreamingText("");
+    setPendingResearch(null);
     streamingTextRef.current = "";
     setIsStreaming(false);
     setStatus("IDLE");
@@ -118,6 +125,24 @@ export function useChatStream() {
     }
   };
 
+  // The server saves a user turn before streaming its reply, but an aborted send
+  // never refetches history. Adopt the persisted ID so Regenerate can target it.
+  const adoptPersistedUserId = async (
+    conversationId: string,
+    localId: number,
+    content: string,
+    requestId: number
+  ) => {
+    try {
+      const history = await mockApiClient.getConversationMessages(conversationId);
+      const persisted = findPersistedUserMessage(history, content);
+      if (!persisted || !requests.isCurrent(requestId)) return;
+      setMessages((prev) => reconcileUserMessageId(prev, localId, persisted));
+    } catch (e) {
+      console.warn("Could not reconcile aborted message with server history", e);
+    }
+  };
+
   const sendMessage = async (text: string, isVoice: boolean = false) => {
     if (!text.trim() || isStreaming) {
       if (!text.trim()) {
@@ -126,8 +151,7 @@ export function useChatStream() {
       return;
     }
 
-    const currentRequestId = Date.now();
-    activeRequestIdRef.current = currentRequestId;
+    const currentRequestId = requests.begin();
     streamingTextRef.current = "";
 
     // Interrupt/cancel previous speech when a new message starts
@@ -135,10 +159,11 @@ export function useChatStream() {
 
     setStatus("AWAKENING");
     setTimeout(() => {
-      if (activeRequestIdRef.current === currentRequestId) setStatus("THINKING");
+      if (requests.isCurrent(currentRequestId)) setStatus("THINKING");
     }, 400);
     setIsStreaming(true);
     setStreamingText("");
+    setPendingResearch(null);
 
     // Append local user message immediately
     const localUserMsg: Message = {
@@ -158,11 +183,12 @@ export function useChatStream() {
     abortControllerRef.current = controller;
 
     try {
-      await mockApiClient.sendMessageStream(
-        activeConversationId,
+      await mockApiClient.sendMessageStream({
+        conversationId: activeConversationId,
         text,
-        (chunk) => {
-          if (activeRequestIdRef.current !== currentRequestId) return;
+        signal: controller.signal,
+        onChunk: (chunk) => {
+          if (!requests.isCurrent(currentRequestId)) return;
 
           if (!hasReceivedChunk) {
             hasReceivedChunk = true;
@@ -172,8 +198,8 @@ export function useChatStream() {
           streamingTextRef.current = nextText;
           setStreamingText(nextText);
         },
-        (newId) => {
-          if (activeRequestIdRef.current !== currentRequestId) return;
+        onConversation: (newId) => {
+          if (!requests.isCurrent(currentRequestId)) return;
           resolvedId = newId;
           if (activeConversationId !== newId) {
             shouldPreventLoadRef.current = true;
@@ -181,13 +207,16 @@ export function useChatStream() {
           }
           loadConversations();
         },
-        (errorMsg) => {
+        onCitations: (research) => {
+          if (!requests.isCurrent(currentRequestId)) return;
+          setPendingResearch(research);
+        },
+        onError: (errorMsg) => {
           console.error("Stream error:", errorMsg);
         },
-        controller.signal
-      );
+      });
 
-      if (activeRequestIdRef.current !== currentRequestId) return;
+      if (!requests.isCurrent(currentRequestId)) return;
 
       // Re-fetch persisted message history upon stream success
       let finalMessages: Message[] = [];
@@ -210,7 +239,7 @@ export function useChatStream() {
       } else {
         setStatus("COMPLETING");
         setTimeout(() => {
-          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+          if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
         }, 800);
       }
     } catch (err: any) {
@@ -218,7 +247,7 @@ export function useChatStream() {
         aborted = true;
       } else {
         console.error("Failed to execute message stream", err);
-        if (activeRequestIdRef.current === currentRequestId) {
+        if (requests.isCurrent(currentRequestId)) {
           const errorMsg = err.message || "Failed to process message stream.";
           if (resolvedId) {
             try {
@@ -246,19 +275,19 @@ export function useChatStream() {
           }
         }
       }
-      if (activeRequestIdRef.current === currentRequestId) {
+      if (requests.isCurrent(currentRequestId)) {
         setStatus("ERROR");
         setTimeout(() => {
-          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+          if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
         }, 2000);
       }
     } finally {
-      if (activeRequestIdRef.current === currentRequestId) {
+      if (requests.isCurrent(currentRequestId)) {
         setIsStreaming(false);
         if (aborted) {
           setStatus("ABORTED");
           setTimeout(() => {
-            if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+            if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
           }, 2000);
           // Keep the already-generated portion of the assistant response visible
           if (streamingTextRef.current.trim().length > 0) {
@@ -277,6 +306,9 @@ export function useChatStream() {
               prev.map((m) => (m.id === localUserMsg.id ? { ...m, isAborted: true } : m))
             );
           }
+          if (resolvedId) {
+            void adoptPersistedUserId(resolvedId, localUserMsg.id, text, currentRequestId);
+          }
         }
         setStreamingText("");
         abortControllerRef.current = null;
@@ -293,18 +325,18 @@ export function useChatStream() {
       messages.find((m) => m.id === userMessageId);
     if (!userMsg || userMsg.role !== "user") return;
 
-    const currentRequestId = Date.now();
-    activeRequestIdRef.current = currentRequestId;
+    const currentRequestId = requests.begin();
     streamingTextRef.current = "";
 
     stopSpeech();
 
     setStatus("AWAKENING");
     setTimeout(() => {
-      if (activeRequestIdRef.current === currentRequestId) setStatus("THINKING");
+      if (requests.isCurrent(currentRequestId)) setStatus("THINKING");
     }, 400);
     setIsStreaming(true);
     setStreamingText("");
+    setPendingResearch(null);
 
     // Remove transient assistant output for this turn & clear error state from user message
     setMessages((prev) => {
@@ -341,11 +373,12 @@ export function useChatStream() {
     abortControllerRef.current = controller;
 
     try {
-      await mockApiClient.sendMessageStream(
-        resolvedId,
-        null,
-        (chunk) => {
-          if (activeRequestIdRef.current !== currentRequestId) return;
+      await mockApiClient.sendMessageStream({
+        conversationId: resolvedId,
+        retryMessageId: userMsg.id,
+        signal: controller.signal,
+        onChunk: (chunk) => {
+          if (!requests.isCurrent(currentRequestId)) return;
 
           if (!hasReceivedChunk) {
             hasReceivedChunk = true;
@@ -355,8 +388,8 @@ export function useChatStream() {
           streamingTextRef.current = nextText;
           setStreamingText(nextText);
         },
-        (newId) => {
-          if (activeRequestIdRef.current !== currentRequestId) return;
+        onConversation: (newId) => {
+          if (!requests.isCurrent(currentRequestId)) return;
           resolvedId = newId;
           if (activeConversationId !== newId) {
             shouldPreventLoadRef.current = true;
@@ -364,14 +397,16 @@ export function useChatStream() {
           }
           loadConversations();
         },
-        (errorMsg) => {
+        onCitations: (research) => {
+          if (!requests.isCurrent(currentRequestId)) return;
+          setPendingResearch(research);
+        },
+        onError: (errorMsg) => {
           console.error("Stream retry error:", errorMsg);
         },
-        controller.signal,
-        userMsg.id
-      );
+      });
 
-      if (activeRequestIdRef.current !== currentRequestId) return;
+      if (!requests.isCurrent(currentRequestId)) return;
 
       // Synchronize with authoritative backend conversation history on completion
       let finalMessages: Message[] = [];
@@ -381,33 +416,33 @@ export function useChatStream() {
       }
       setStatus("COMPLETING");
       setTimeout(() => {
-        if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+        if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
       }, 800);
     } catch (err: any) {
       if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
         aborted = true;
       } else {
         console.error("Failed to execute retry stream", err);
-        if (activeRequestIdRef.current === currentRequestId) {
+        if (requests.isCurrent(currentRequestId)) {
           const errorMsg = err.message || "Retry failed.";
           setMessages((prev) =>
             prev.map((m) => (m.id === userMsg.id ? { ...m, isError: true, errorText: errorMsg } : m))
           );
         }
       }
-      if (activeRequestIdRef.current === currentRequestId) {
+      if (requests.isCurrent(currentRequestId)) {
         setStatus("ERROR");
         setTimeout(() => {
-          if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+          if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
         }, 2000);
       }
     } finally {
-      if (activeRequestIdRef.current === currentRequestId) {
+      if (requests.isCurrent(currentRequestId)) {
         setIsStreaming(false);
         if (aborted) {
           setStatus("ABORTED");
           setTimeout(() => {
-            if (activeRequestIdRef.current === currentRequestId) setStatus("IDLE");
+            if (requests.isCurrent(currentRequestId)) setStatus("IDLE");
           }, 2000);
           if (streamingTextRef.current.trim().length > 0) {
             const abortedAssistantMsg: Message = {
@@ -427,6 +462,7 @@ export function useChatStream() {
           }
         }
         setStreamingText("");
+        setPendingResearch(null);
         abortControllerRef.current = null;
       }
     }
@@ -438,6 +474,7 @@ export function useChatStream() {
     messages,
     loading,
     streamingText,
+    pendingResearch,
     isStreaming,
     status,
     setStatus,

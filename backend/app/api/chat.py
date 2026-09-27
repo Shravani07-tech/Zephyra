@@ -19,13 +19,14 @@ from app.services.llm import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
+from app.services.research import ResearchUnavailableError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
 
-def _format_sse(event: str, **kwargs: str) -> bytes:
+def _format_sse(event: str, **kwargs: object) -> bytes:
     """Format event and data dict as an SSE data payload."""
     payload = {"event": event, **kwargs}
     return f"data: {json.dumps(payload)}\n\n".encode()
@@ -101,11 +102,18 @@ async def chat(
                 user_text,
                 skip_user_append=skip_user_append,
             ):
-                yield _format_sse("chunk", text=chunk)
-
+                if isinstance(chunk, dict):
+                    if chunk.get("type") == "citations":
+                        yield _format_sse("citations", research=chunk.get("data"))
+                else:
+                    yield _format_sse("chunk", text=chunk)
 
             yield _format_sse("done")
 
+        except ResearchUnavailableError as e:
+            yield _format_sse(
+                "error", code="RESEARCH_UNAVAILABLE", reason=e.reason, detail=e.message
+            )
         except LLMAuthenticationError as e:
             yield _format_sse("error", code="AUTHENTICATION_ERROR", detail=str(e))
         except LLMRateLimitError as e:

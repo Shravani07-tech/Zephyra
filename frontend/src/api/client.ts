@@ -1,4 +1,18 @@
-import type { Conversation, Message } from "./types";
+import type { Conversation, Message, ResearchMetadata } from "./types";
+
+export interface StreamChatOptions {
+  conversationId: string | null;
+  /** Message text for a new turn. Ignored when `retryMessageId` is set. */
+  text?: string | null;
+  /** Existing user message to regenerate. */
+  retryMessageId?: number;
+  signal?: AbortSignal;
+  onChunk: (chunk: string) => void;
+  onConversation: (id: string) => void;
+  /** Server-validated research citations for this turn. */
+  onCitations?: (research: ResearchMetadata) => void;
+  onError?: (err: string) => void;
+}
 
 const BASE_URL = "http://localhost:8000";
 
@@ -63,15 +77,22 @@ export const mockApiClient = {
     }
   },
 
-  async sendMessageStream(
-    conversationId: string | null,
-    text: string | null,
-    onChunk: (chunk: string) => void,
-    onConversation: (id: string) => void,
-    onError: (err: string) => void,
-    signal?: AbortSignal,
-    retryMessageId?: number
-  ): Promise<void> {
+  /**
+   * Stream one chat turn. Takes a single options object so callers cannot
+   * silently mis-order callbacks. Resolves only when the server sends `done`;
+   * rejects with an AbortError on cancellation, or an Error otherwise
+   * (after calling `onError` exactly once).
+   */
+  async sendMessageStream({
+    conversationId,
+    text = null,
+    retryMessageId,
+    signal,
+    onChunk,
+    onConversation,
+    onCitations,
+    onError,
+  }: StreamChatOptions): Promise<void> {
     try {
       const validConvId =
         conversationId && conversationId !== "temp" && conversationId.trim().length > 0
@@ -119,6 +140,7 @@ export const mockApiClient = {
 
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
+      let receivedDone = false;
 
       try {
         while (true) {
@@ -153,17 +175,23 @@ export const mockApiClient = {
               if (data.text) {
                 onChunk(data.text);
               }
+            } else if (data.event === "citations") {
+              if (data.research && Array.isArray(data.research.citations)) {
+                onCitations?.(data.research as ResearchMetadata);
+              }
             } else if (data.event === "error") {
-              const errMsg = formatErrorDetail(data.detail) || "Provider/API error occurred.";
-              onError(errMsg);
-              throw new Error(errMsg);
+              throw new Error(formatErrorDetail(data.detail) || "Provider/API error occurred.");
             } else if (data.event === "done") {
-              // Successful stream completion
+              receivedDone = true;
             }
           }
         }
       } finally {
         reader.releaseLock();
+      }
+
+      if (!receivedDone) {
+        throw new Error("The response stream ended unexpectedly.");
       }
     } catch (err: any) {
       if (err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError")) {
@@ -180,7 +208,7 @@ export const mockApiClient = {
       if (errMsg.includes("[object Object]")) {
         errMsg = "Failed to process message stream.";
       }
-      onError(errMsg);
+      onError?.(errMsg);
       throw new Error(errMsg);
     }
   }
