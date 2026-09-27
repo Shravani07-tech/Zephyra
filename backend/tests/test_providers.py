@@ -1,7 +1,7 @@
 """Tests for the new LLM provider abstraction and specific providers."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import openai
 import pytest
@@ -81,7 +81,7 @@ def test_ollama_unavailable_model():
         # Mock to throw APIStatusError with 404
         async def mock_raise_404(*args, **kwargs):
             raise openai.APIStatusError(
-                message="Model not found", response=patch('httpx.Response', status_code=404).start(), body=None
+                message="Model not found", response=MagicMock(status_code=404), body=None
             )
             
         provider.client.chat.completions.create = AsyncMock(side_effect=mock_raise_404)

@@ -71,6 +71,105 @@ def explicit_priority(user_text: str) -> str | None:
     return (match.group(1) or match.group(2)).upper() if match else None
 
 
+_WEEKDAY = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+_MONTH = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+    r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
+_ORDINAL = r"\d{1,2}(?:st|nd|rd|th)?"
+# Date and time phrases a small model sometimes leaves inside a task title after
+# already extracting them into due_at. Only unambiguous forms are matched: a bare
+# weekday only after a preposition or at the end, a time only with am/pm or ":".
+_DATE_TIME_PHRASES = re.compile(
+    r"\b(?:on|by|before|until|due|this|next|coming)\s+" + _WEEKDAY + r"\b"
+    r"|\b" + _WEEKDAY + r"\s*$"
+    r"|\b(?:today|tomorrow|tonight)\b(?!['’])"
+    r"|\b(?:this|next)\s+(?:week|weekend|month|morning|afternoon|evening)\b"
+    r"|\b(?:on|by|before|until)\s+(?:" + _ORDINAL + r"\s+" + _MONTH + r"|" + _MONTH + r"\s+"
+    + _ORDINAL + r")\b"
+    r"|\b(?:at|by|before|around)\s+\d{1,2}(?::\d{2}\s*(?:am|pm)?|\s*(?:am|pm))\b"
+    r"|\bin\s+the\s+(?:morning|afternoon|evening)\b",
+    re.IGNORECASE,
+)
+_PRIORITY_PHRASES = re.compile(
+    r",?\s*(?:\bwith\s+)?(?:\ba\s+)?\b(?:urgent|high|medium|low)\s+priority\b"
+    r"|,\s*(?:it['’]?s\s+)?urgent\b(?!\s+priority)",
+    re.IGNORECASE,
+)
+_DANGLING = re.compile(r"(?:[\s,;:\-]+|\s+(?:on|at|by|with|and|for)\b)+$", re.IGNORECASE)
+
+
+def clean_task_title(title: str, *, has_due: bool) -> str:
+    """Remove date/time and priority wording the model left in a new task's title.
+
+    Date/time wording is only removed when a due date was actually parsed, so no
+    information is lost. The original title is kept if cleaning would empty it.
+    """
+    cleaned = _PRIORITY_PHRASES.sub(" ", title)
+    if has_due:
+        cleaned = _DATE_TIME_PHRASES.sub(" ", cleaned)
+    cleaned = " ".join(cleaned.split())
+    previous = None
+    while cleaned != previous:  # peel "…at", "…, " left behind, repeatedly
+        previous = cleaned
+        cleaned = _DANGLING.sub("", cleaned).strip()
+    return cleaned or title.strip()
+
+
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_DAY_REFERENCE = re.compile(
+    r"\b(today|tonight|tomorrow)\b(?!['’])"
+    r"|\b(?:(?:on|by|this|next|coming)\s+)?(" + "|".join(_WEEKDAYS) + r")\b",
+    re.IGNORECASE,
+)
+_TIME_REFERENCE = re.compile(
+    r"\b(?:at|by|before|around)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b"
+    r"|\b(\d{1,2}):(\d{2})\s*(am|pm)?\b"
+    r"|\b(\d{1,2})\s*(am|pm)\b",
+    re.IGNORECASE,
+)
+
+
+def infer_due(user_text: str, now: datetime) -> datetime | None:
+    """Deterministic fallback when the model returns no usable due date.
+
+    Understands today/tonight/tomorrow and weekdays (the next occurrence after
+    today), with an optional time such as "at 3pm", "9:30am", or "17:00".
+    A day without a time defaults to 09:00 (20:00 for "tonight"). Returns None
+    unless a day is named, so nothing is guessed from a bare time.
+    """
+    day = _DAY_REFERENCE.search(user_text)
+    if not day:
+        return None
+    word = (day.group(1) or day.group(2)).lower()
+    if word in ("today", "tonight"):
+        date = now.date()
+    elif word == "tomorrow":
+        date = (now + timedelta(days=1)).date()
+    else:
+        ahead = (_WEEKDAYS.index(word) - now.weekday()) % 7 or 7
+        date = (now + timedelta(days=ahead)).date()
+
+    hour, minute = (20, 0) if word == "tonight" else (9, 0)
+    time = _TIME_REFERENCE.search(user_text)
+    if time:
+        h, m, meridiem = (
+            (time.group(1), time.group(2), time.group(3)) if time.group(1)
+            else (time.group(4), time.group(5), time.group(6)) if time.group(4)
+            else (time.group(7), None, time.group(8))
+        )
+        hour, minute = int(h), int(m or 0)
+        if meridiem:
+            meridiem = meridiem.lower()
+            if hour == 12:
+                hour = 0 if meridiem == "am" else 12
+            elif meridiem == "pm":
+                hour += 12
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            return None
+    return datetime(date.year, date.month, date.day, hour, minute)
+
+
 def date_context(now: datetime) -> str:
     """Today's date plus the next week's dates, so relative days map exactly."""
     days = [now + timedelta(days=offset) for offset in range(1, 8)]
@@ -222,15 +321,17 @@ async def handle_task(state: PlannerState, db: Session) -> dict:
             if not title:
                 result["error"] = "What should the task be called? Please include a title."
             else:
+                # Small models sometimes omit a due date the user clearly gave.
+                due_at = _due(data.get("due_at")) or infer_due(user_text, datetime.now())
                 task = tasks.create_task(
                     db,
                     conversation_id=conversation_id,
-                    title=title,
+                    title=clean_task_title(title, has_due=due_at is not None),
                     description=data.get("description"),
                     priority=explicit_priority(user_text)
                     or _priority(data.get("priority"))
                     or "MEDIUM",
-                    due_at=_due(data.get("due_at")),
+                    due_at=due_at,
                 )
                 result["success"] = True
                 result["task"] = _summary(task)

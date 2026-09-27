@@ -329,6 +329,83 @@ def test_date_context_lists_the_coming_week() -> None:
     assert "Friday = 2026-10-02" in text and "Sunday = 2026-10-04" in text
 
 
+@pytest.mark.parametrize(
+    ("title", "has_due", "expected"),
+    [
+        # Forms observed at runtime with llama3.2:
+        ("Call the dentist next Monday at 9am", True, "Call the dentist"),
+        ("submit the quarterly report tomorrow at 5pm", True, "submit the quarterly report"),
+        ("Pay the electricity bill on Friday at 10am, urgent priority", True,
+         "Pay the electricity bill"),
+        ("Renew passport by 3rd October", True, "Renew passport"),
+        ("Water the plants this evening", True, "Water the plants"),
+        ("Send invoice at 17:00", True, "Send invoice"),
+        ("Book flights with high priority", False, "Book flights"),
+        # Must be left alone:
+        ("Pick up kids at school", True, "Pick up kids at school"),
+        ("Plan Monday standup agenda", True, "Plan Monday standup agenda"),
+        ("Prepare tomorrow's slides", True, "Prepare tomorrow's slides"),
+        ("Renew passport", True, "Renew passport"),
+        ("Call mom tomorrow", False, "Call mom tomorrow"),  # no due date parsed: keep it
+        ("tomorrow", True, "tomorrow"),  # would be empty: keep the original
+    ],
+)
+def test_clean_task_title(title: str, has_due: bool, expected: str) -> None:
+    from app.agent.nodes.task import clean_task_title
+
+    assert clean_task_title(title, has_due=has_due) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # "now" is Sunday 27 Sep 2026, 10:00.
+        ("Pick up the kids at school on Friday at 3pm", "2026-10-02 15:00"),
+        ("Call the dentist next Monday at 9am", "2026-09-28 09:00"),
+        ("Submit the report tomorrow at 5pm", "2026-09-28 17:00"),
+        ("Send the invoice today at 17:30", "2026-09-27 17:30"),
+        ("Water the plants tonight", "2026-09-27 20:00"),
+        ("Renew passport on Sunday", "2026-10-04 09:00"),  # next Sunday, not today
+        ("Lunch tomorrow at 12pm", "2026-09-28 12:00"),
+        ("Alarm tomorrow at 12am", "2026-09-28 00:00"),
+        ("Buy groceries", None),
+        ("Call mom at 5pm", None),  # a time alone is not enough
+        ("Prepare tomorrow's slides", None),
+        ("Meet on Friday at 25:00", None),
+    ],
+)
+def test_infer_due(text: str, expected: str | None) -> None:
+    from datetime import datetime
+
+    from app.agent.nodes.task import infer_due
+
+    due = infer_due(text, datetime(2026, 9, 27, 10, 0))
+    assert (due.strftime("%Y-%m-%d %H:%M") if due else None) == expected
+
+
+def test_missing_model_due_date_falls_back_to_parser(db_session: Session) -> None:
+    llm = ScriptedLLM(['{"operation": "CREATE", "title": "Pick up the kids at school", '
+                       '"due_at": null}'])
+    with patch("app.agent.nodes.task.get_llm_provider", lambda *a, **k: llm):
+        state = {"user_text": "Create a task to pick up the kids at school on Friday at 3pm",
+                 "conversation_id": "c"}
+        result = asyncio.run(handle_task(state, db_session))["tool_results"][0]
+    task = result["task"]
+    assert task["due_at"] is not None and task["due_at"].endswith("15:00:00")
+    assert task["title"] == "Pick up the kids at school"
+
+
+def test_created_task_title_is_cleaned(db_session: Session) -> None:
+    llm = ScriptedLLM(['{"operation": "CREATE", "title": "Call the dentist next Monday at 9am", '
+                       '"due_at": "2026-09-28T09:00:00"}'])
+    with patch("app.agent.nodes.task.get_llm_provider", lambda *a, **k: llm):
+        state = {"user_text": "Remind me to call the dentist next Monday at 9am",
+                 "conversation_id": "c"}
+        result = asyncio.run(handle_task(state, db_session))["tool_results"][0]
+    assert result["task"]["title"] == "Call the dentist"
+    assert format_task_reply(result).startswith("Created task “Call the dentist”")
+
+
 def test_task_values_are_validated(db_session: Session) -> None:
     llm = ScriptedLLM(['{"operation": "CREATE", "title": "Stretch", "priority": "SUPER", '
                        '"due_at": "not a date"}'])

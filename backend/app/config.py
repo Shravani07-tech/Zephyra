@@ -7,7 +7,7 @@ file. ``.env`` is never committed; ``.env.example`` documents its shape.
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     research_snippet_max_chars: int = Field(
         500, ge=50, le=2000, validation_alias="RESEARCH_SNIPPET_MAX_CHARS"
     )
+    # Used when SEARCH_PROVIDER=tavily. SecretStr keeps it out of reprs and logs.
+    tavily_api_key: SecretStr | None = Field(None, validation_alias="TAVILY_API_KEY")
 
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
     file_storage_path: Path = BACKEND_ROOT / "data" / "files"

@@ -9,11 +9,13 @@ from app.services.search.base import (
     SearchProviderNotConfiguredError,
     SearchResult,
 )
+from app.services.search.tavily import TavilySearchProvider
 
-# Concrete Search API providers are registered here by name once a vendor is
-# approved. Providers must call a Search API only: no page fetching, scraping,
-# crawling or browser automation.
-PROVIDERS: dict[str, Callable[[Settings], BaseSearchProvider]] = {}
+# Approved Search API providers, by SEARCH_PROVIDER name. Providers must call a
+# Search API only: no page fetching, scraping, crawling or browser automation.
+PROVIDERS: dict[str, Callable[[Settings], BaseSearchProvider]] = {
+    "tavily": TavilySearchProvider,
+}
 
 
 def get_search_provider(settings: Settings) -> BaseSearchProvider:
