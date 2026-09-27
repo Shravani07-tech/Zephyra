@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.agent.nodes.research import COMPOUND_CLARIFICATION, handle_research
 from app.agent.nodes.router import is_compound_research_task, route_intent
 from app.agent.runner import run_turn
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import Base, get_db, init_db
 from app.main import create_app
 from app.models import Memory, Message, Task
@@ -133,9 +133,11 @@ def _registry(results: list[dict[str, str]] = APPLE) -> SourceRegistry:
 
 
 def test_provider_not_configured_by_default() -> None:
-    assert get_settings().search_provider == "none"
+    # Check the code default, not the developer's local .env (which may enable Tavily).
+    assert Settings.model_fields["search_provider"].default == "none"
+    settings = get_settings().model_copy(update={"search_provider": "none"})
     with pytest.raises(SearchProviderNotConfiguredError):
-        get_search_provider(get_settings())
+        get_search_provider(settings)
 
 
 def test_unknown_provider_rejected() -> None:
