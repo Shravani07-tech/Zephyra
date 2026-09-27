@@ -20,6 +20,10 @@ export function prepareSpeechText(text: string): string {
   // 4. Handle Markdown Links: [text](url) -> keep text, remove url
   cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
 
+  // 4b. Drop research citation markers such as [src-1a2b3c4d] or
+  // [src-1a2b3c4d, src-5e6f7a8b]; they are shown as sources, not read aloud.
+  cleaned = cleaned.replace(/\s?\[src-[0-9a-f]{8}(?:\s*,\s*src-[0-9a-f]{8})*\]/g, "");
+
   // 5. Remove HTML tags
   cleaned = cleaned.replace(/<[^>]*>/g, "");
 

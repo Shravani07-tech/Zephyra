@@ -49,10 +49,19 @@ def get_messages(db: Session, conversation_id: str) -> list[Message]:
 
 
 def delete_conversation(db: Session, conversation_id: str) -> bool:
-    """Delete a conversation. Cascade deletes associated messages."""
+    """Delete a conversation, its messages, and its attached files.
+
+    Files are removed through the File Assistant so shared vectors and stored
+    files are only deleted once no other conversation uses them. Tasks and
+    memories are user-level and are kept.
+    """
     conv = get_conversation(db, conversation_id)
     if not conv:
         return False
+    from app.files.service import delete_file, list_files
+
+    for doc in list_files(db, conversation_id):
+        delete_file(db, doc.id)
     db.delete(conv)
     db.commit()
     return True

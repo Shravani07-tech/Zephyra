@@ -9,6 +9,7 @@ import json
 from app.models import Memory
 from app.files.store import get_vector_store
 from app.services.llm import get_llm_provider
+from app.services.memory_rules import is_sensitive, normalize_category
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,10 @@ class MemoryService:
 
     async def extract_memory_candidates(self, text: str, conversation_id: str | None = None, user_id: str | None = None) -> None:
         """Run implicit memory extraction in the background."""
-        logger.info(f"Extracting memory candidates for: {text[:50]}...")
+        # Special-category data is never stored implicitly, whatever the model says.
+        if is_sensitive(text):
+            logger.info("Skipping implicit memory extraction: sensitive content")
+            return
         llm = get_llm_provider(self.settings.llm_provider)
         
         system_prompt = """You are a Memory Extraction Assistant.
@@ -116,6 +120,8 @@ DO NOT STORE:
 - General knowledge questions (e.g. "What is binary search?", "Explain recursion")
 - Transient state or emotions (e.g. "I'm tired", "My build is failing right now")
 - Ordinary code/debugging context
+- Sensitive personal data: health or medical details, religion, political views,
+  sexual orientation or sex life, criminal history, finances, or credentials
 
 DO STORE:
 - User preferences (e.g. "I prefer Python")
@@ -151,14 +157,29 @@ Return structured JSON matching the requested schema. If nothing should be remem
             # try to strip markdown code blocks
             clean_json = response_text.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean_json)
-            
+            if not isinstance(data, dict):
+                return
+            # Small models misspell the flag ("should_reremember"); accept any
+            # "should_*" key rather than silently dropping every extraction.
+            if "should_remember" not in data:
+                flag = next((k for k in data if str(k).startswith("should_")), None)
+                data["should_remember"] = bool(data.get(flag)) if flag else False
+
             result = ExtractionResult(**data)
             
-            if result.should_remember and result.category != "NONE" and result.confidence > 0.7:
-                logger.info(f"Implicit memory extracted: {result.content}")
+            category = normalize_category(result.category)
+            content = result.content.strip()
+            if (
+                result.should_remember
+                and category is not None
+                and content
+                and result.confidence > 0.7
+                and not is_sensitive(content)
+            ):
+                logger.info("Implicit memory extracted (%s)", category)
                 self.create_memory(
-                    content=result.content,
-                    category=result.category,
+                    content=content,
+                    category=category,
                     conversation_id=conversation_id,
                     user_id=user_id,
                 )

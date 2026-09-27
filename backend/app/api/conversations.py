@@ -12,6 +12,12 @@ from app.services import conversation as conv_service
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
+@router.post("", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+def create_conversation(db: Session = Depends(get_db)) -> ConversationResponse:
+    """Create an empty conversation (e.g. to attach a file before the first message)."""
+    return ConversationResponse.model_validate(conv_service.create_conversation(db))
+
+
 @router.get("", response_model=list[ConversationResponse])
 def get_conversations(db: Session = Depends(get_db)) -> list[ConversationResponse]:
     """List all conversations ordered by creation date."""
@@ -41,7 +47,7 @@ def delete_conversation(
     conversation_id: uuid.UUID,
     db: Session = Depends(get_db),
 ) -> None:
-    """Delete a conversation thread and all its messages."""
+    """Delete a conversation thread, its messages, and its attached files."""
     conv_id = str(conversation_id)
     deleted = conv_service.delete_conversation(db, conv_id)
     if not deleted:

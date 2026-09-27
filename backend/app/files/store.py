@@ -52,7 +52,9 @@ class VectorStore:
                     clean_m[k] = str(v) if not isinstance(v, (int, float, bool, str)) else v
             clean_metadata.append(clean_m)
             
-        self.collection.add(
+        # Upsert: identical content maps to identical IDs, so re-indexing a hash
+        # whose vectors already exist (e.g. left by an earlier failure) is safe.
+        self.collection.upsert(
             documents=chunks,
             metadatas=clean_metadata,
             ids=ids,

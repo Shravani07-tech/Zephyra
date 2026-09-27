@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { project3D } from "./atmosphereGeometry";
 
 interface BackgroundAtmosphereProps {
   status?: string;
@@ -377,43 +378,6 @@ export const BackgroundAtmosphere: React.FC<BackgroundAtmosphereProps> = ({
     let pulseTimer = 0;
     let currentVolume = 0;
     let previousStatus = "IDLE";
-
-    const project3D = (
-      x: number,
-      y: number,
-      z: number,
-      tiltX: number,
-      tiltY: number,
-      rotateZ: number,
-      cx: number,
-      cy: number,
-      fov: number
-    ) => {
-      const cosZ = Math.cos(rotateZ);
-      const sinZ = Math.sin(rotateZ);
-      const x1 = x * cosZ - y * sinZ;
-      const y1 = x * sinZ + y * cosZ;
-
-      const cosX = Math.cos(tiltX);
-      const sinX = Math.sin(tiltX);
-      const y2 = y1 * cosX - z * sinX;
-      const z2 = y1 * sinX + z * cosX;
-
-      const cosY = Math.cos(tiltY);
-      const sinY = Math.sin(tiltY);
-      const x3 = x1 * cosY + z2 * sinY;
-      const z3 = -x1 * sinY + z2 * cosY;
-
-      const scale = fov / (fov + z3);
-      const parallax = z3 / fov;
-      return {
-        x: cx + x3 * scale,
-        y: cy + y2 * scale,
-        z: z3,
-        scale,
-        parallax,
-      };
-    };
 
     const draw = () => {
       ctx.clearRect(0, 0, width, height);

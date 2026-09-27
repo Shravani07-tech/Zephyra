@@ -30,6 +30,17 @@ export interface Message {
   userMessageId?: number;
 }
 
+/** A document attached to a conversation for File Assistant questions. */
+export interface UploadedFile {
+  id: string;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  status: string;
+  created_at: string;
+}
+
 export interface Conversation {
   id: string;
   created_at: string;

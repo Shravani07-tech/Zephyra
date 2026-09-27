@@ -1,14 +1,19 @@
 """Agent execution turn runner implementing the linear orchestration seam."""
 
+import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.agent.nodes.research import COMPOUND_CLARIFICATION
+from app.agent.nodes.task import format_task_reply
 from app.agent.planner import build_planner
 from app.config import get_settings
+from app.db import SessionLocal
+from app.files.prompt import build_file_messages
 from app.services import conversation as conv_service
 from app.services.llm import BaseLLMProvider, get_llm_provider
 from app.services.memory import window as memory_window
@@ -16,6 +21,8 @@ from app.services.research import ResearchUnavailableError
 from app.services.research.citations import validate_citations
 from app.services.research.evidence import build_research_messages
 from app.services.research.registry import SourceRegistry
+
+logger = logging.getLogger(__name__)
 
 
 async def run_turn(
@@ -71,7 +78,7 @@ async def run_turn(
         final_state = await planner_graph.ainvoke(planner_state)
         tool_results = final_state.get("tool_results", [])
     except Exception as e:
-        # Planner failure should not crash chat, just fallback to normal chat with error context
+        # Planner failure should not crash chat: answer as plain chat instead.
         final_state = planner_state
         tool_results = [{"success": False, "error": f"Planner error: {str(e)}"}]
 
@@ -90,18 +97,33 @@ async def run_turn(
             yield event
         return
 
-    # 4. Inject tool results if present
-    if tool_results:
-        system_msg = (
-            "You are Zephyra. Based on the user's request, a background capability was executed. "
-            "Acknowledge the result concisely. Do not expose internal JSON to the user.\n\n"
-            f"Execution Results:\n{json.dumps(tool_results, indent=2)}"
-        )
-        # Insert before the user's last message so the LLM sees it as context for the reply
-        recent_payload.insert(-1, {"role": "system", "content": system_msg})
+    result = tool_results[0] if tool_results else {}
 
-    # 4b. Inject persistent memory context
-    if intent != "MEMORY":  # Don't inject memory when explicitly creating/deleting it
+    # 4. Task and memory operations answer deterministically from their result,
+    # so internal data never reaches the reply and the reply matches what happened.
+    if intent in ("TASK", "MEMORY"):
+        if intent == "TASK":
+            reply = format_task_reply(result)
+        else:
+            reply = str(result.get("message") or result.get("error") or "Done.")
+        yield reply
+        conv_service.append_message(db, conversation_id, "assistant", reply)
+        return
+
+    if intent == "FILE":
+        if not result.get("success"):
+            reply = str(result.get("error") or "I couldn't search your files.")
+            yield reply
+            conv_service.append_message(db, conversation_id, "assistant", reply)
+            return
+        # Grounded in the retrieved excerpts only; memory is not mixed in.
+        payload = build_file_messages(recent_payload, user_text, result["retrieved_chunks"])
+    else:
+        payload = recent_payload
+        if intent is None and tool_results:
+            logger.warning("Planner failed; answering as plain chat: %s", result.get("error"))
+
+        # 4b. Inject persistent memory context
         from app.services.memory_service import MemoryService
         mem_service = MemoryService(db)
         memories = mem_service.search_memories(user_text, user_id="default", n_results=3, threshold=1.0)
@@ -110,18 +132,17 @@ async def run_turn(
             memory_texts = [m["text"] for m in memories]
             mem_msg = (
                 "<zephyra_memory>\n"
-                "Relevant remembered user context (ordered newest to oldest):\n"
+                "Remembered user context (newest first). It ranks below the user's current "
+                "message, uploaded files, and task data: if it conflicts with them, follow "
+                "them instead.\n"
                 "- " + "\n- ".join(memory_texts) + "\n"
                 "</zephyra_memory>"
             )
-            print(f"Memory retrieved for context: {memory_texts}")
-            recent_payload[-1]["content"] = f"{mem_msg}\n\n{user_text}"
-        else:
-            print(f"No memories retrieved for user_text: {user_text}")
+            payload[-1]["content"] = f"{mem_msg}\n\n{user_text}"
 
     full_reply_chunks = []
     # 5–6. Stream response and accumulate
-    async for chunk in service.stream_chat(recent_payload):
+    async for chunk in service.stream_chat(payload):
         full_reply_chunks.append(chunk)
         yield chunk
 
@@ -130,17 +151,32 @@ async def run_turn(
     if full_reply:
         conv_service.append_message(db, conversation_id, "assistant", full_reply)
 
-        # 8. Trigger background memory extraction for normal chat
+        # 8. Background memory extraction, for ordinary chat only
         if intent == "CHAT":
-            import asyncio
-            from app.services.memory_service import MemoryService
-            mem_service = MemoryService(db)
-            asyncio.create_task(mem_service.extract_memory_candidates(
-                text=user_text,
-                conversation_id=conversation_id,
-                user_id="default"
-            ))
+            _spawn_memory_extraction(user_text, conversation_id)
 
+
+# Strong references keep background extraction tasks alive until they finish.
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _spawn_memory_extraction(user_text: str, conversation_id: str) -> None:
+    """Extract implicit memories after the reply, in a session of its own.
+
+    The request's session is closed once the response ends, so the background
+    task must not share it.
+    """
+    from app.services.memory_service import MemoryService
+
+    async def extract() -> None:
+        with SessionLocal() as session:
+            await MemoryService(session).extract_memory_candidates(
+                text=user_text, conversation_id=conversation_id, user_id="default"
+            )
+
+    task = asyncio.create_task(extract())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 async def _run_research(
     db: Session,

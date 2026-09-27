@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Square, Volume2, Play, X } from "lucide-react";
+import { ArrowUp, Square, Volume2, Play, X, Paperclip, FileText, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { MicButton } from "./MicButton";
 import type { VoicePlaybackState } from "../hooks/useSpeech";
+import type { UploadedFile } from "../api/types";
+import { ACCEPTED_EXTENSIONS } from "../api/files";
 
 interface ComposerProps {
   onSend: (text: string) => void;
@@ -16,6 +18,11 @@ interface ComposerProps {
   isSending: boolean;
   volume?: number;
   status?: string;
+  attachments?: UploadedFile[];
+  onAttach?: (file: File) => void;
+  onRemoveAttachment?: (documentId: string) => void;
+  isUploading?: boolean;
+  attachError?: string | null;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -30,8 +37,20 @@ export const Composer: React.FC<ComposerProps> = ({
   isSending,
   volume = 0,
   status = "IDLE",
+  attachments = [],
+  onAttach,
+  onRemoveAttachment,
+  isUploading = false,
+  attachError = null,
 }) => {
   const [text, setText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow choosing the same file again
+    if (file && onAttach) onAttach(file);
+  };
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -109,6 +128,44 @@ export const Composer: React.FC<ComposerProps> = ({
         {/* Fine top border highlight */}
         <div className="absolute inset-x-0 top-0 h-[1px] bg-linear-to-r from-transparent via-zephyra-accent/8 to-transparent pointer-events-none rounded-t-2xl" />
         
+        {/* Attached files for this conversation */}
+        {(attachments.length > 0 || isUploading || attachError) && (
+          <div className="flex flex-wrap items-center gap-1.5 px-2.5 pt-1">
+            {attachments.map((doc) => (
+              <span
+                key={doc.id}
+                className="inline-flex items-center gap-1 max-w-[220px] px-2 py-0.5 rounded border border-zephyra-border-surface/40 bg-zephyra-border-hairline/30 font-mono text-[9px] text-zephyra-text-muted"
+                title={doc.original_filename}
+              >
+                <FileText className="w-3 h-3 shrink-0 text-zephyra-accent/70" />
+                <span className="truncate">{doc.filename}</span>
+                {onRemoveAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAttachment(doc.id)}
+                    disabled={isSending}
+                    aria-label={`Remove file ${doc.filename}`}
+                    className="ml-0.5 text-zephyra-text-veryMuted hover:text-red-300 disabled:opacity-40 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+            {isUploading && (
+              <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zephyra-text-veryMuted uppercase tracking-wider">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                uploading
+              </span>
+            )}
+            {attachError && (
+              <span role="alert" className="font-mono text-[9px] text-red-400">
+                {attachError}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Top Input Area */}
         <div className="w-full flex items-start px-2.5">
           <textarea
@@ -137,6 +194,29 @@ export const Composer: React.FC<ComposerProps> = ({
               onClick={onMicClick}
               disabled={isSending}
             />
+            {onAttach && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_EXTENSIONS.join(",")}
+                  onChange={handleFileChosen}
+                  className="hidden"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSending || isListening || isUploading}
+                  aria-label="Attach a file"
+                  title="Attach a file (PDF, TXT, MD, CSV, DOCX, XLSX up to 10 MB)"
+                  className="h-8 w-8 rounded-full border border-zephyra-border-surface/40 text-zephyra-text-veryMuted hover:text-zephyra-accent hover:border-zephyra-accent/40 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
             <div className="h-3 flex items-center">
               {isListening ? (
                 <span className="text-zephyra-accent flex items-center gap-1.5 font-mono text-[8px] md:text-[9px] tracking-widest uppercase">

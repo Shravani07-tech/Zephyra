@@ -1,4 +1,4 @@
-import type { Conversation, Message, ResearchMetadata } from "./types";
+import type { Conversation, Message, ResearchMetadata, UploadedFile } from "./types";
 
 export interface StreamChatOptions {
   conversationId: string | null;
@@ -66,6 +66,51 @@ export const mockApiClient = {
       throw new Error(`Failed to load messages: ${response.status} ${response.statusText}`);
     }
     return response.json();
+  },
+
+  async createConversation(): Promise<Conversation> {
+    const response = await fetch(`${BASE_URL}/api/conversations`, { method: "POST" });
+    if (!response.ok) {
+      throw new Error(`Failed to create conversation: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async listFiles(conversationId: string): Promise<UploadedFile[]> {
+    const response = await fetch(
+      `${BASE_URL}/api/files?conversation_id=${encodeURIComponent(conversationId)}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to load files: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async uploadFile(conversationId: string, file: File): Promise<UploadedFile> {
+    const form = new FormData();
+    form.append("conversation_id", conversationId);
+    form.append("file", file);
+    const response = await fetch(`${BASE_URL}/api/files`, { method: "POST", body: form });
+    if (!response.ok) {
+      let detail = `Upload failed (HTTP ${response.status})`;
+      try {
+        const body = await response.json();
+        detail = formatErrorDetail(body?.detail) || detail;
+      } catch {
+        // keep the status-based message
+      }
+      throw new Error(detail);
+    }
+    return response.json();
+  },
+
+  async deleteFile(documentId: string): Promise<void> {
+    const response = await fetch(`${BASE_URL}/api/files/${encodeURIComponent(documentId)}`, {
+      method: "DELETE",
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Failed to remove file: ${response.status} ${response.statusText}`);
+    }
   },
 
   async deleteConversation(conversationId: string): Promise<void> {

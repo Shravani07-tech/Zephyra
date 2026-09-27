@@ -14,10 +14,10 @@ async def handle_file(state: PlannerState, db: Session) -> dict:
     conversation_id = state["conversation_id"]
     is_test = state.get("is_test", False)
     
-    # 1. Identify which files the user has
-    docs = list_files(db, conversation_id)
+    # 1. Identify which files the user has. Only fully indexed files are searchable.
+    docs = [doc for doc in list_files(db, conversation_id) if doc.status == "READY"]
     if not docs:
-        return {"tool_results": [{"success": False, "error": "No files uploaded to search."}]}
+        return {"tool_results": [{"success": False, "error": "There are no uploaded files in this conversation to search. Attach a file first."}]}
         
     doc_map = {doc.filename: doc for doc in docs}
     

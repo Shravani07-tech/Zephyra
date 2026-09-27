@@ -16,6 +16,10 @@ from app.files.store import get_vector_store
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB limit for MVP
 
+
+class FileProcessingError(ValueError):
+    """The file was accepted but could not be parsed or indexed."""
+
 def _calculate_hash(content: bytes) -> str:
     """Calculate SHA-256 hash of content."""
     return hashlib.sha256(content).hexdigest()
@@ -88,15 +92,16 @@ def process_upload(
     
     file_hash = _calculate_hash(content)
     
-    # Check cache
+    # Identical content is processed once. A later upload of the same bytes gets
+    # its own document row that shares the stored file and the hash-keyed vectors.
     existing = db.execute(
         select(Document)
         .where(Document.file_hash == file_hash)
         .where(Document.status == "READY")
-    ).scalar_one_or_none()
-    
+        .limit(1)
+    ).scalars().first()
+
     if existing:
-        # Cache hit: Create a new DB entry but don't re-embed
         doc = Document(
             conversation_id=conversation_id,
             filename=safe_filename,
@@ -110,28 +115,14 @@ def process_upload(
         db.add(doc)
         db.commit()
         db.refresh(doc)
-        # Vector store uses document_id, so we need to copy chunks... wait.
-        # If we re-use the file, the vector store uses `document_id`.
-        # To avoid re-embedding, we can actually just share the underlying vector entries.
-        # But our `add_chunks` adds by `document_id`. A simple approach for MVP:
-        # If hash exists, we still need to add chunks to the new `document_id` so we can delete safely.
-        # However, to avoid LLM cost, we can skip embedding if the vector store supported it.
-        # For this MVP, if we want to truly skip processing: 
-        # let's just parse and embed again for the new ID to keep deletion isolated, 
-        # OR we just link them. The prompt says: "DO NOT: parse again, chunk again, embed again".
-        pass # We will handle sharing chunks in a moment, but actually, the simplest is to fetch existing chunks from DB.
-        # Wait, ChromaDB doesn't allow copying chunks easily without re-embedding unless we fetch embeddings.
-        # The prompt says: "Use the hash as the identity for content caching. If the same file is uploaded again: DO NOT parse again... reuse the existing processed representation when safe."
-        # If we use `file_hash` as the metadata filter instead of `document_id` for retrieval! 
-        # Yes! Then multiple documents can point to the same hash.
+        return doc
 
-    # For MVP, if it doesn't exist, process it.
     settings = get_settings()
     settings.file_storage_path.mkdir(parents=True, exist_ok=True)
-    
-    # We will use `file_hash` as the primary key for the stored file on disk
+
+    # The stored file is named by its hash, so identical uploads share it.
     storage_path = str(settings.file_storage_path / file_hash)
-    
+
     doc = Document(
         conversation_id=conversation_id,
         filename=safe_filename,
@@ -145,35 +136,34 @@ def process_upload(
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    
-    if not existing:
-        # Write to disk
-        if not os.path.exists(storage_path):
-            with open(storage_path, "wb") as f:
-                f.write(content)
-                
-        try:
-            # Parse
-            sections = parse_document(content, mime_type, safe_filename)
-            # Chunk
-            chunked_sections = chunk_document(sections)
-            # Embed and Index
-            store = get_vector_store(is_test=is_test)
-            
-            chunks = [cs.text for cs in chunked_sections]
-            metadatas = [cs.metadata for cs in chunked_sections]
-            
-            # Add to vector store using `file_hash` as the document_id conceptually, 
-            # so all identical files share the same chunks in ChromaDB.
-            store.add_chunks(document_id=file_hash, chunks=chunks, metadata_list=metadatas)
-            
-            doc.status = "READY"
-            
-        except Exception as e:
-            doc.status = "FAILED"
-            doc.error_message = str(e)
-            
+
+    if not os.path.exists(storage_path):
+        with open(storage_path, "wb") as f:
+            f.write(content)
+
+    try:
+        sections = parse_document(content, mime_type, safe_filename)
+        chunked_sections = chunk_document(sections)
+        store = get_vector_store(is_test=is_test)
+        # Chunks are keyed by `file_hash`, so all identical files share them.
+        store.add_chunks(
+            document_id=file_hash,
+            chunks=[cs.text for cs in chunked_sections],
+            metadata_list=[cs.metadata for cs in chunked_sections],
+        )
+    except Exception as e:
+        # Leave nothing behind: no FAILED row, no orphaned file on disk.
+        db.delete(doc)
         db.commit()
-        db.refresh(doc)
-        
+        others = db.execute(select(Document).where(Document.file_hash == file_hash)).first()
+        if others is None and os.path.exists(storage_path):
+            try:
+                os.remove(storage_path)
+            except OSError:
+                pass
+        raise FileProcessingError(str(e)) from e
+
+    doc.status = "READY"
+    db.commit()
+    db.refresh(doc)
     return doc

@@ -1,10 +1,14 @@
 import json
+
+from sqlalchemy.orm import Session
+
 from app.agent.state import PlannerState
 from app.services.llm import get_llm_provider
+from app.services.memory_rules import normalize_category
 from app.services.memory_service import MemoryService
-from app.db import get_db
 
-async def handle_memory(state: PlannerState) -> dict:
+
+async def handle_memory(state: PlannerState, db: Session) -> dict:
     """Handle explicit memory operations."""
     user_text = state["user_text"]
     conversation_id = state["conversation_id"]
@@ -39,13 +43,13 @@ async def handle_memory(state: PlannerState) -> dict:
             response_text = response_text[:-3]
             
         data = json.loads(response_text.strip())
-        action = data.get("action", "CREATE").upper()
-        category = data.get("category", "PERSONAL_FACT")
-        content = data.get("content", "")
-        
-        db_gen = get_db()
-        db = next(db_gen)
-        
+        action = str(data.get("action", "CREATE")).upper()
+        # Explicit requests may use any category; unknown ones fall back safely.
+        category = normalize_category(data.get("category")) or "PERSONAL_FACT"
+        content = str(data.get("content", "")).strip()
+        if not content:
+            return {"tool_results": [{"success": False, "error": "I couldn't tell what you'd like me to remember or forget. Could you rephrase it?"}]}
+
         mem_service = MemoryService(db)
         
         if action == "CREATE":

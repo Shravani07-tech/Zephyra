@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { useChatStream } from "../hooks/useChatStream";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { useConversationFiles } from "../hooks/useConversationFiles";
 import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
 import { MessageList } from "./MessageList";
@@ -24,6 +25,7 @@ export const ChatView: React.FC = () => {
     retryMessage,
     stopGeneration,
     createNewConversation,
+    ensureConversation,
     selectConversation,
     deleteConversation,
     voiceState,
@@ -32,6 +34,8 @@ export const ChatView: React.FC = () => {
     stopVoice,
     stopSpeech,
   } = useChatStream();
+
+  const attachments = useConversationFiles(activeConversationId, ensureConversation);
 
 
   const { isListening, volume, toggleListening } = useVoiceInput(
@@ -238,6 +242,11 @@ export const ChatView: React.FC = () => {
             isSending={isStreaming}
             volume={volume}
             status={status}
+            attachments={attachments.files}
+            onAttach={attachments.upload}
+            onRemoveAttachment={attachments.remove}
+            isUploading={attachments.isUploading}
+            attachError={attachments.error}
           />
         </main>
 

@@ -114,6 +114,15 @@ export function useChatStream() {
     }
   };
 
+  /** The active conversation's ID, creating an empty conversation if needed. */
+  const ensureConversation = async (): Promise<string> => {
+    if (activeConversationId) return activeConversationId;
+    const conversation = await mockApiClient.createConversation();
+    setActiveConversationId(conversation.id);
+    loadConversations();
+    return conversation.id;
+  };
+
   const createNewConversation = () => {
     selectConversation(null);
   };
@@ -484,6 +493,7 @@ export function useChatStream() {
     selectConversation,
     deleteConversation,
     createNewConversation,
+    ensureConversation,
     voiceState,
     pauseVoice,
     resumeVoice,

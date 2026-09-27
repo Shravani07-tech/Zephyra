@@ -33,7 +33,7 @@ def build_planner(db: Session):
 
     async def memory_node(state: PlannerState) -> dict:
         from app.agent.nodes.memory import handle_memory
-        return await handle_memory(state)
+        return await handle_memory(state, db)
         
     workflow.add_node("task", task_node)
     workflow.add_node("file", file_node)
