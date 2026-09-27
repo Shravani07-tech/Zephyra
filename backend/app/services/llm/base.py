@@ -24,6 +24,10 @@ class LLMTimeoutError(LLMError):
     """Raised when requests to the provider time out."""
 
 
+class LLMConnectionError(LLMUnavailableError):
+    """Raised when the provider cannot be reached at all (e.g. no network)."""
+
+
 class BaseLLMProvider(ABC):
     """Abstract base contract for all Zephyra Lite LLM providers."""
 

@@ -30,9 +30,12 @@ class OllamaProvider(BaseLLMProvider):
         self.model = model or settings.ollama_model
 
         # Ollama does not require an API key; use dummy string for AsyncOpenAI client compatibility.
+        # The read timeout covers a cold model load on CPU; without it a stuck
+        # server would hold the chat in THINKING for the client default (10 min).
         self.client = AsyncOpenAI(
             api_key="ollama",
             base_url=self.base_url,
+            timeout=openai.Timeout(settings.llm_read_timeout_seconds, connect=5.0),
         )
 
     @property

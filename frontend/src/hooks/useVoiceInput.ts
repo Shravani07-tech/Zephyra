@@ -1,16 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
-export function useVoiceInput(
-  onTranscript?: (text: string) => void,
-  onError?: (errorMsg: string) => void
-) {
+import { createVoiceSession, type RecognitionLike, type VoiceSession } from "./voiceSession";
+
+export interface VoiceInputHandlers {
+  /** The user stopped listening: submit this transcript. */
+  onTranscript?: (text: string) => void;
+  /** Listening ended on its own (error, switch): keep this text for editing. */
+  onInterrupted?: (text: string) => void;
+  onError?: (errorMsg: string) => void;
+}
+
+export function useVoiceInput(handlers: VoiceInputHandlers = {}) {
   const [isListening, setIsListening] = useState(false);
   const [volume, setVolume] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState("");
 
-  const recognitionRef = useRef<any>(null);
-  const shouldListenRef = useRef(false);
-  const restartTimeoutRef = useRef<any>(null);
-  const isMountedRef = useRef<boolean>(true);
+  // Latest handlers, so a session never calls a stale closure.
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+
+  const sessionRef = useRef<VoiceSession | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -18,9 +27,6 @@ export function useVoiceInput(
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const volumeIntervalRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  // Accumulate transcript segments
-  const finalTranscriptRef = useRef<string>("");
 
   const stopAudioVolume = useCallback(() => {
     if (volumeIntervalRef.current) {
@@ -54,7 +60,7 @@ export function useVoiceInput(
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      
+
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioContextClass();
       audioContextRef.current = audioCtx;
@@ -85,174 +91,63 @@ export function useVoiceInput(
         setVolume(mappedVolume);
       }, 100);
     } catch (err: any) {
+      // The level meter is cosmetic; recognition reports its own mic errors.
       console.warn("Could not start audio context for volume levels:", err);
-      setVolume(0);
-      const errMsg = err.message || "Microphone access denied or unavailable.";
-      onError?.(errMsg);
-      // Disable listening state
-      shouldListenRef.current = false;
-      setIsListening(false);
       stopAudioVolume();
     }
-  }, [onError, stopAudioVolume]);
+  }, [stopAudioVolume]);
 
-  const getRecognition = useCallback(() => {
-    if (recognitionRef.current) return recognitionRef.current;
-
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) return null;
-
-    const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    
-    const browserLang = typeof navigator !== "undefined" ? navigator.language : "en-US";
-    recognition.lang = browserLang || "en-US";
-
-    recognitionRef.current = recognition;
-    return recognition;
-  }, []);
-
-  const startListening = useCallback(() => {
-    // Prevent starting loops or race states
-    shouldListenRef.current = false;
-    if (restartTimeoutRef.current) {
-      clearTimeout(restartTimeoutRef.current);
-      restartTimeoutRef.current = null;
-    }
-
-    const recognition = getRecognition();
-    if (!recognition) {
-      const errMsg = "Speech recognition is not supported in this browser.";
-      console.warn(errMsg);
-      onError?.(errMsg);
-      setIsListening(false);
-      return;
-    }
-
-    // Abort previous session if any to ensure clean restart
-    try {
-      recognition.abort();
-    } catch {}
-
-    finalTranscriptRef.current = "";
-    shouldListenRef.current = true;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      startAudioVolume();
-    };
-
-    recognition.onresult = (event: any) => {
-      let localFinalTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          localFinalTranscript += result[0].transcript;
-        }
-      }
-      if (localFinalTranscript) {
-        finalTranscriptRef.current += localFinalTranscript;
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.warn("SpeechRecognition error event:", event.error);
-      const fatalErrors = ["not-allowed", "service-not-allowed", "audio-capture"];
-      if (fatalErrors.includes(event.error)) {
-        shouldListenRef.current = false;
-        setIsListening(false);
-        stopAudioVolume();
-        onError?.(`Microphone/Permission Error: ${event.error}`);
-      } else if (event.error === "no-speech") {
-        // Suppress permanent stop on no-speech; we let the end handler auto-restart
-        console.log("SpeechRecognition: no-speech. Auto-restart handles this onend.");
-      }
-    };
-
-    recognition.onend = () => {
-      if (!isMountedRef.current) return;
-      if (shouldListenRef.current) {
-        if (restartTimeoutRef.current) {
-          clearTimeout(restartTimeoutRef.current);
-        }
-        restartTimeoutRef.current = setTimeout(() => {
-          if (shouldListenRef.current && isMountedRef.current) {
-            try {
-              recognition.start();
-            } catch (e: any) {
-              // Ignore already-started state errors gracefully
-              if (e.name !== "InvalidStateError") {
-                console.warn("SpeechRecognition failed to auto-restart:", e);
-              }
-            }
+  const getSession = useCallback((): VoiceSession => {
+    if (sessionRef.current) return sessionRef.current;
+    const session = createVoiceSession(
+      () => {
+        const SpeechRecognitionAPI =
+          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        return SpeechRecognitionAPI ? (new SpeechRecognitionAPI() as RecognitionLike) : null;
+      },
+      {
+        onListeningChange: (listening) => {
+          setIsListening(listening);
+          if (listening) {
+            startAudioVolume();
+          } else {
+            stopAudioVolume();
+            setLiveTranscript("");
           }
-        }, 200);
-      } else {
-        setIsListening(false);
-        stopAudioVolume();
+        },
+        onTranscriptChange: setLiveTranscript,
+        onFinish: (text) => handlersRef.current.onTranscript?.(text),
+        onInterrupted: (text) => handlersRef.current.onInterrupted?.(text),
+        onError: (message) => {
+          console.warn("Speech recognition:", message);
+          handlersRef.current.onError?.(message);
+        },
+      },
+      { lang: (typeof navigator !== "undefined" && navigator.language) || "en-US" }
+    );
+    sessionRef.current = session;
+    return session;
+  }, [startAudioVolume, stopAudioVolume]);
 
-        // Fire transcript callback with accumulated final transcript upon intentional stop
-        const resultText = finalTranscriptRef.current.trim();
-        if (onTranscript && resultText) {
-          onTranscript(resultText);
-        }
-        
-        // Reset buffer
-        finalTranscriptRef.current = "";
-      }
-    };
-
-    try {
-      recognition.start();
-    } catch (err: any) {
-      if (err.name !== "InvalidStateError") {
-        console.error("SpeechRecognition start error:", err);
-        onError?.(err.message || "Failed to start speech recognition.");
-        setIsListening(false);
-      }
-    }
-  }, [getRecognition, startAudioVolume, stopAudioVolume, onError, onTranscript]);
-
-  const stopListening = useCallback(() => {
-    shouldListenRef.current = false;
-    if (restartTimeoutRef.current) {
-      clearTimeout(restartTimeoutRef.current);
-      restartTimeoutRef.current = null;
-    }
-
-    const recognition = recognitionRef.current;
-    if (recognition) {
-      try {
-        recognition.stop();
-      } catch {}
-    }
-  }, []);
+  const startListening = useCallback(() => getSession().start(), [getSession]);
+  const stopListening = useCallback(() => sessionRef.current?.stop(), []);
+  /** Stop without submitting; the transcript goes to `onInterrupted`. */
+  const cancelListening = useCallback(() => sessionRef.current?.cancel(), []);
 
   const toggleListening = useCallback(() => {
-    if (shouldListenRef.current) {
-      stopListening();
+    const session = getSession();
+    if (session.isActive()) {
+      session.stop();
     } else {
-      startListening();
+      session.start();
     }
-  }, [startListening, stopListening]);
+  }, [getSession]);
 
-  // Clean up on unmount
+  // Clean up on unmount: no restart and no callbacks after this.
   useEffect(() => {
-    isMountedRef.current = true;
     return () => {
-      isMountedRef.current = false;
-      shouldListenRef.current = false;
-      if (restartTimeoutRef.current) {
-        clearTimeout(restartTimeoutRef.current);
-      }
-      const recognition = recognitionRef.current;
-      if (recognition) {
-        try {
-          recognition.abort();
-        } catch {}
-      }
+      sessionRef.current?.dispose();
+      sessionRef.current = null;
       stopAudioVolume();
     };
   }, [stopAudioVolume]);
@@ -260,8 +155,10 @@ export function useVoiceInput(
   return {
     isListening,
     volume,
+    liveTranscript,
     startListening,
     stopListening,
+    cancelListening,
     toggleListening,
   };
 }

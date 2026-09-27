@@ -24,8 +24,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Active Provider ("nvidia" | "ollama")
-    llm_provider: str = Field("nvidia", validation_alias="LLM_PROVIDER")
+    # LLM provider: "auto" routes to NVIDIA when it is configured and reachable,
+    # falling back to local Ollama. "nvidia" or "ollama" pins a single provider.
+    llm_provider: str = Field("auto", validation_alias="LLM_PROVIDER")
+    # Per-read timeout for LLM streams (covers a cold local model load).
+    llm_read_timeout_seconds: float = Field(
+        180.0, gt=0, validation_alias="LLM_READ_TIMEOUT_SECONDS"
+    )
+    # How long a failed NVIDIA check keeps routing on Ollama before retrying NVIDIA.
+    provider_health_ttl_seconds: float = Field(
+        60.0, gt=0, validation_alias="PROVIDER_HEALTH_TTL_SECONDS"
+    )
 
     # NVIDIA Provider Configuration
     nvidia_api_key: str | None = Field(None, validation_alias="NVIDIA_API_KEY")

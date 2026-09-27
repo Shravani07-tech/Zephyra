@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.services.llm.base import (
     BaseLLMProvider,
     LLMAuthenticationError,
+    LLMConnectionError,
     LLMError,
     LLMRateLimitError,
     LLMTimeoutError,
@@ -27,6 +28,7 @@ class NvidiaProvider(BaseLLMProvider):
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
+        max_retries: int = 2,
     ) -> None:
         settings = get_settings()
         self.api_key = api_key or settings.nvidia_api_key
@@ -35,9 +37,12 @@ class NvidiaProvider(BaseLLMProvider):
 
         # Initialize OpenAI client for NVIDIA base URL.
         # Fallback to dummy key to allow class instantiation in missing-auth tests.
+        # Bounded timeouts: an unreachable host must fail fast, not hang the chat.
         self.client = AsyncOpenAI(
             api_key=self.api_key or "missing_key",
             base_url=self.base_url,
+            timeout=openai.Timeout(settings.llm_read_timeout_seconds, connect=5.0),
+            max_retries=max_retries,
         )
 
     @property
@@ -76,6 +81,10 @@ class NvidiaProvider(BaseLLMProvider):
         except openai.APITimeoutError as e:
             logger.error("NVIDIA Timeout: %s", str(e))
             raise LLMTimeoutError("NVIDIA API request timed out.") from e
+
+        except openai.APIConnectionError as e:
+            logger.error("NVIDIA connection failed: %s", type(e).__name__)
+            raise LLMConnectionError("NVIDIA hosted API is unreachable.") from e
 
         except openai.APIStatusError as e:
             logger.error("NVIDIA status error %d: %s", e.status_code, str(e))

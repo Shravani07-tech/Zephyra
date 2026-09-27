@@ -59,6 +59,7 @@ class ConversationResponse(BaseModel):
 
     id: str
     created_at: datetime
+    title: str | None = None
 
 
 class ConversationDetailResponse(ConversationResponse):

@@ -17,6 +17,10 @@ interface ComposerProps {
   isListening: boolean;
   isSending: boolean;
   volume?: number;
+  /** Words recognized so far, shown while listening. */
+  liveTranscript?: string;
+  /** Speech kept after listening ended on its own; added to the draft for editing. */
+  voiceDraft?: { id: number; text: string } | null;
   status?: string;
   attachments?: UploadedFile[];
   onAttach?: (file: File) => void;
@@ -36,6 +40,8 @@ export const Composer: React.FC<ComposerProps> = ({
   isListening,
   isSending,
   volume = 0,
+  liveTranscript = "",
+  voiceDraft = null,
   status = "IDLE",
   attachments = [],
   onAttach,
@@ -53,6 +59,11 @@ export const Composer: React.FC<ComposerProps> = ({
   };
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!voiceDraft?.text) return;
+    setText((prev) => (prev.trim() ? `${prev.trim()} ${voiceDraft.text}` : voiceDraft.text).slice(0, 2000));
+  }, [voiceDraft]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +86,7 @@ export const Composer: React.FC<ComposerProps> = ({
       textarea.style.height = "auto";
       textarea.style.height = `${Math.min(128, textarea.scrollHeight)}px`;
     }
-  }, [text]);
+  }, [text, liveTranscript, isListening]);
 
   // V3.1 Responsive Composer States Glow Mapping
   let borderColor = "rgba(26, 34, 53, 0.4)";
@@ -170,7 +181,7 @@ export const Composer: React.FC<ComposerProps> = ({
         <div className="w-full flex items-start px-2.5">
           <textarea
             ref={textareaRef}
-            value={text}
+            value={isListening ? liveTranscript : text}
             onChange={(e) => setText(e.target.value.slice(0, 2000))}
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}

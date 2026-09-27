@@ -44,4 +44,6 @@ export interface UploadedFile {
 export interface Conversation {
   id: string;
   created_at: string;
+  /** Semantic title from the first meaningful message; null until there is one. */
+  title?: string | null;
 }

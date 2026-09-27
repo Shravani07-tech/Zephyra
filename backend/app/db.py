@@ -43,6 +43,7 @@ def get_db() -> Iterator[Session]:
 # on startup. Each entry is (table, column, SQL type).
 _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("messages", "metadata", "TEXT"),  # Phase 5 research citation metadata
+    ("conversations", "title", "VARCHAR(80)"),  # semantic conversation titles
 )
 
 

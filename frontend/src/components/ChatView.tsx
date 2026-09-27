@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useChatStream } from "../hooks/useChatStream";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { useConversationFiles } from "../hooks/useConversationFiles";
+import { conversationTitle } from "../api/conversationTitle";
 import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
 import { MessageList } from "./MessageList";
@@ -38,16 +39,27 @@ export const ChatView: React.FC = () => {
   const attachments = useConversationFiles(activeConversationId, ensureConversation);
 
 
-  const { isListening, volume, toggleListening } = useVoiceInput(
-    (transcript) => {
+  // Speech that ended without a user stop goes back into the composer.
+  const [voiceDraft, setVoiceDraft] = useState<{ id: number; text: string } | null>(null);
+
+  const { isListening, volume, liveTranscript, toggleListening, cancelListening } = useVoiceInput({
+    onTranscript: (transcript) => {
       sendMessage(transcript, true);
     },
-    (errorMsg) => {
+    onInterrupted: (transcript) => {
+      setVoiceDraft({ id: Date.now(), text: transcript });
+    },
+    onError: (errorMsg) => {
       console.error("Voice input error:", errorMsg);
       setStatus("IDLE");
       alert(`Microphone Error: ${errorMsg}`);
-    }
-  );
+    },
+  });
+
+  // Switching conversations ends listening without sending anything.
+  useEffect(() => {
+    cancelListening();
+  }, [activeConversationId, cancelListening]);
 
   const handleVoiceToggle = useCallback(() => {
     if (!isListening) {
@@ -68,7 +80,9 @@ export const ChatView: React.FC = () => {
     status: "IDLE",
   });
 
+  // Refreshed after every turn so the monitor shows the provider actually in use.
   useEffect(() => {
+    if (isStreaming) return;
     let active = true;
     const fetchSystemStatus = async () => {
       try {
@@ -85,7 +99,7 @@ export const ChatView: React.FC = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isStreaming]);
 
   // Sync vocal recording states to ambient global status safely
   useEffect(() => {
@@ -186,7 +200,7 @@ export const ChatView: React.FC = () => {
 
                         <div className="flex flex-col gap-0.5 min-w-0 pr-2 pl-1 font-mono">
                           <span className="text-[9px] tracking-wide truncate">
-                            session_{conv.id.substring(0, 8)}
+                            {conversationTitle(conv)}
                           </span>
                           <span className="text-[8px] text-zephyra-text-veryMuted">
                             {formatTime(conv.created_at)}
@@ -241,6 +255,8 @@ export const ChatView: React.FC = () => {
             isListening={isListening}
             isSending={isStreaming}
             volume={volume}
+            liveTranscript={liveTranscript}
+            voiceDraft={voiceDraft}
             status={status}
             attachments={attachments.files}
             onAttach={attachments.upload}

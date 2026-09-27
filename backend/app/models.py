@@ -23,6 +23,8 @@ class Conversation(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
+    # Display title from the first meaningful user message; the ID stays the key.
+    title: Mapped[str | None] = mapped_column(String(80), nullable=True, default=None)
 
     messages: Mapped[list["Message"]] = relationship(
         "Message",

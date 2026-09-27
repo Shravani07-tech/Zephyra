@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 
 import { mockApiClient } from "../api/client";
 import type { Conversation, Message, ResearchMetadata } from "../api/types";
+import { advanceToThinking } from "./chatStatus";
 import { findPersistedUserMessage, reconcileUserMessageId } from "./reconcile";
 import { createRequestTracker } from "./requestTracker";
 import { useSpeech } from "./useSpeech";
@@ -168,7 +169,7 @@ export function useChatStream() {
 
     setStatus("AWAKENING");
     setTimeout(() => {
-      if (requests.isCurrent(currentRequestId)) setStatus("THINKING");
+      if (requests.isCurrent(currentRequestId)) setStatus(advanceToThinking);
     }, 400);
     setIsStreaming(true);
     setStreamingText("");
@@ -322,6 +323,8 @@ export function useChatStream() {
         setStreamingText("");
         abortControllerRef.current = null;
       }
+      // The first message titles a new conversation; refresh the list.
+      void loadConversations();
     }
   };
 
@@ -341,7 +344,7 @@ export function useChatStream() {
 
     setStatus("AWAKENING");
     setTimeout(() => {
-      if (requests.isCurrent(currentRequestId)) setStatus("THINKING");
+      if (requests.isCurrent(currentRequestId)) setStatus(advanceToThinking);
     }, 400);
     setIsStreaming(true);
     setStreamingText("");

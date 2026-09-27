@@ -38,14 +38,25 @@ def test_cors_rejects_an_unlisted_origin(client: TestClient) -> None:
 
 def test_system_status_endpoint(client: TestClient) -> None:
     """The /api/system/status endpoint returns safe config details and never leaks secrets."""
-    response = client.get("/api/system/status")
+    from unittest.mock import AsyncMock, patch
+
+    from app.config import get_settings
+    from app.services.llm import routing
+
+    # No network in tests: the NVIDIA probe is stubbed out.
+    with patch("app.services.llm.routing.probe_nvidia", AsyncMock()):
+        response = client.get("/api/system/status")
     assert response.status_code == 200
     data = response.json()
-    from app.config import get_settings
-    
+
     settings = get_settings()
-    # It defaults to nvidia if not set, but .env sets it to ollama
-    expected_provider = "Ollama" if settings.llm_provider.lower() == "ollama" else "NVIDIA"
+    mode = settings.llm_provider.lower()
+    if mode == "auto":
+        # Routed: NVIDIA when configured and healthy, otherwise Ollama.
+        nvidia_selected = routing.select_reason() == routing.NVIDIA_PRIMARY
+        expected_provider = "NVIDIA" if nvidia_selected else "Ollama"
+    else:
+        expected_provider = "Ollama" if mode == "ollama" else "NVIDIA"
     
     assert data["provider"] == expected_provider
 
